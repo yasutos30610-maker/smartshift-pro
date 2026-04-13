@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@theme {
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+  --color-blue-950: #172554;
+
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
+  --color-rose-200: #fecdd3;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+  --color-rose-700: #be123c;
+
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+
+  --color-indigo-50: #eef2ff;
+  --color-indigo-100: #e0e7ff;
+  --color-indigo-200: #c7d2fe;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+  --color-indigo-700: #4338ca;
+  
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+  --color-zinc-950: #09090b;
+  
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+}
+
+@layer base {
+  html { font-size: 17px; }
+  body { font-size: 1rem; -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+  input:focus, select:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+  
+  /* iPad touch target optimization */
+  button, select, input, a {
+    min-height: 44px;
+  }
+}
+
+@media print {
+  body { background: white !important; color: black !important; }
+  nav, .print\:hidden { display: none !important; }
+  main { padding: 0 !important; margin: 0 !important; width: 100% !important; }
+  .bg-slate-900, .bg-slate-950, .bg-slate-800 { background: white !important; }
+  .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400 { color: black !important; }
+  .border-slate-800, .border-slate-700 { border-color: #e2e8f0 !important; }
+  .shadow-xl, .shadow-lg { box-shadow: none !important; }
+  .print\:p-0 { padding: 0 !important; }
+  .print\:space-y-4 > * + * { margin-top: 1rem !important; }
+  .print\:border { border: 1px solid #e2e8f0 !important; }
+  .print\:rounded-none { border-radius: 0 !important; }
+  .print\:shadow-none { box-shadow: none !important; }
+}
+
+/* PDF Export overrides to fix oklab/oklch issues in html2canvas */
+.pdf-export, .pdf-export * {
+  transition: none !important;
+  animation: none !important;
+  color-interpolation: sRGB !important;
+  color-interpolation-filters: sRGB !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important; /* Disable gradients which often use oklab */
+  box-shadow: none !important;
+  text-shadow: none !important;
+  /* Force solid colors for common utilities during export */
+  border-color: #e2e8f0 !important; 
+  outline: none !important;
+  /* Disable modern color features that html2canvas can't parse */
+  color-scheme: light !important;
+  forced-color-adjust: none !important;
+}
+
+.pdf-export .bg-white { background-color: #ffffff !important; }
+.pdf-export .bg-slate-50 { background-color: #f8fafc !important; }
+.pdf-export .bg-slate-100 { background-color: #f1f5f9 !important; }
+.pdf-export .bg-slate-200 { background-color: #e2e8f0 !important; }
+.pdf-export .bg-slate-800 { background-color: #1e293b !important; }
+.pdf-export .bg-slate-900 { background-color: #0f172a !important; }
+.pdf-export .bg-slate-950 { background-color: #020617 !important; }
+.pdf-export .bg-blue-50 { background-color: #eff6ff !important; }
+.pdf-export .bg-blue-100 { background-color: #dbeafe !important; }
+.pdf-export .bg-blue-200 { background-color: #bfdbfe !important; }
+.pdf-export .bg-blue-500 { background-color: #3b82f6 !important; }
+.pdf-export .bg-blue-600 { background-color: #2563eb !important; }
+.pdf-export .bg-indigo-500 { background-color: #6366f1 !important; }
+.pdf-export .bg-indigo-600 { background-color: #4f46e5 !important; }
+.pdf-export .bg-rose-50 { background-color: #fff1f2 !important; }
+.pdf-export .bg-rose-100 { background-color: #ffe4e6 !important; }
+.pdf-export .bg-rose-200 { background-color: #fecdd3 !important; }
+.pdf-export .bg-rose-500 { background-color: #f43f5e !important; }
+.pdf-export .bg-rose-600 { background-color: #e11d48 !important; }
+.pdf-export .bg-emerald-50 { background-color: #ecfdf5 !important; }
+.pdf-export .bg-emerald-100 { background-color: #d1fae5 !important; }
+.pdf-export .bg-emerald-200 { background-color: #a7f3d0 !important; }
+.pdf-export .bg-emerald-500 { background-color: #10b981 !important; }
+.pdf-export .bg-emerald-600 { background-color: #059669 !important; }
+.pdf-export .bg-amber-50 { background-color: #fffbeb !important; }
+.pdf-export .bg-amber-100 { background-color: #fef3c7 !important; }
+.pdf-export .bg-amber-200 { background-color: #fde68a !important; }
+.pdf-export .bg-amber-500 { background-color: #f59e0b !important; }
+.pdf-export .bg-amber-600 { background-color: #d97706 !important; }
+
+/* Fix for opacity modifiers which often trigger oklab in Tailwind v4 */
+.pdf-export .bg-amber-500\/5 { background-color: #fff9eb !important; }
+.pdf-export .bg-amber-500\/10 { background-color: #fff3d6 !important; }
+.pdf-export .bg-blue-500\/10 { background-color: #f0f7ff !important; }
+.pdf-export .bg-blue-500\/20 { background-color: #e0effe !important; }
+.pdf-export .bg-blue-500\/30 { background-color: #d1e7fe !important; }
+.pdf-export .bg-slate-50\/50 { background-color: #fcfdfe !important; }
+.pdf-export .border-amber-500\/20 { border-color: #fde68a !important; }
+.pdf-export .shadow-blue-500\/20 { box-shadow: none !important; }
+
+.pdf-export .text-slate-900 { color: #0f172a !important; }
+.pdf-export .text-slate-800 { color: #1e293b !important; }
+.pdf-export .text-slate-700 { color: #334155 !important; }
+.pdf-export .text-slate-600 { color: #475569 !important; }
+.pdf-export .text-slate-500 { color: #64748b !important; }
+.pdf-export .text-slate-400 { color: #94a3b8 !important; }
+.pdf-export .text-blue-600 { color: #2563eb !important; }
+.pdf-export .text-indigo-600 { color: #4f46e5 !important; }
+.pdf-export .text-rose-600 { color: #e11d48 !important; }
+.pdf-export .text-amber-500 { color: #f59e0b !important; }
+.pdf-export .text-emerald-600 { color: #059669 !important; }
+.pdf-export .text-white { color: #ffffff !important; }
+
+.pdf-export .border-slate-100 { border-color: #f1f5f9 !important; }
+.pdf-export .border-slate-200 { border-color: #e2e8f0 !important; }
+.pdf-export .border-slate-300 { border-color: #cbd5e1 !important; }
+.pdf-export .border-slate-900 { border-color: #0f172a !important; }
+.pdf-export .border-blue-100 { border-color: #dbeafe !important; }
+.pdf-export .border-blue-200 { border-color: #bfdbfe !important; }
+.pdf-export .border-amber-100 { border-color: #fef3c7 !important; }
+
+.pdf-export .bg-slate-50\/50 { background-color: #fcfdfe !important; }
+.pdf-export .bg-slate-50\/30 { background-color: #fdfefe !important; }
+.pdf-export .bg-blue-50 { background-color: #eff6ff !important; }
+.pdf-export .bg-amber-50 { background-color: #fffbeb !important; }
+
+/* Dashboard specific export stability */
+.pdf-export .grid {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 1rem !important;
+}
+
+.pdf-export .grid > * {
+  flex: 1 1 30% !important;
+  min-width: 200px !important;
+}
+
+.pdf-hide {
+  display: none !important;
+}
+
