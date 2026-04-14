@@ -29,11 +29,12 @@ export default function DashboardTab({
   updateData, isExporting, exportDashboardToPDF, dashboardRef,
 }: DashboardTabProps) {
 
-  // ── 売上 計算 ───────────────────────────────────────────────
-  const achieveRate = totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0;
+  // ── 売上 ──────────────────────────────────────────────────────
+  const achieveRate    = totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0;
+  const forecastRate   = totalBudget > 0 ? (forecast    / totalBudget) * 100 : 0;
 
-  // ── 人件費 計算 ─────────────────────────────────────────────
-  // ① 実績累計：salesActual がある日の実コスト
+  // ── 人件費 ────────────────────────────────────────────────────
+  // ① 実績累計：salesActual がある日だけ
   const actualCost = monthDailyData.reduce((sum, day) => {
     if ((day.salesActual ?? 0) <= 0) return sum;
     return sum + day.shifts.reduce((s, sh) => {
@@ -43,12 +44,13 @@ export default function DashboardTab({
   }, 0);
   const actualCostRate = totalActual > 0 ? (actualCost / totalActual) * 100 : 0;
 
-  // ② 着地予測：全シフト計画コスト vs 予算人件費
-  const forecastedLaborCost = totalCost;           // 月の全スケジュールコスト
-  const budgetLaborCost = totalBudget * (targetRatio / 100);
-  const laborDiff = forecastedLaborCost - budgetLaborCost; // + 超過 / − 良好
+  // ② 着地予測
+  const forecastedLaborCost = totalCost;
+  const budgetLaborCost     = totalBudget * (targetRatio / 100);
+  const laborDiff           = forecastedLaborCost - budgetLaborCost;
+  const laborDiffRate       = totalBudget > 0 ? (laborDiff / totalBudget) * 100 : 0;
 
-  // 差分を時間換算（実績日の平均時給を使用）
+  // 実績労働時間（差分の時間換算用）
   const actualWorkedMins = monthDailyData.reduce((sum, day) => {
     if ((day.salesActual ?? 0) <= 0) return sum;
     return sum + day.shifts.reduce((s, sh) => {
@@ -59,17 +61,34 @@ export default function DashboardTab({
     }, 0);
   }, 0);
   const actualWorkedHours = actualWorkedMins / 60;
-  const avgHourlyCost = actualWorkedHours > 0 ? actualCost / actualWorkedHours : 0;
-  const laborDiffHours = avgHourlyCost > 0 ? Math.abs(laborDiff) / avgHourlyCost : 0;
-  const laborDiffRate = totalBudget > 0 ? (laborDiff / totalBudget) * 100 : 0;
+  const avgHourlyCost     = actualWorkedHours > 0 ? actualCost / actualWorkedHours : 0;
+  const laborDiffHours    = avgHourlyCost > 0 ? Math.abs(laborDiff) / avgHourlyCost : 0;
 
   // ③ 人時売上高
   const laborProductivity = actualWorkedHours > 0 ? totalActual / actualWorkedHours : 0;
 
   // 日次テーブル 2列分割
-  const half = Math.ceil(monthDailyData.length / 2);
+  const half      = Math.ceil(monthDailyData.length / 2);
   const leftDays  = monthDailyData.slice(0, half);
   const rightDays = monthDailyData.slice(half);
+
+  // ── 共通 Row ────────────────────────────────────────────────
+  const KpiRow = ({
+    num, label, main, sub, accent,
+  }: {
+    num?: string; label: string; main: string; sub?: string; accent?: "good" | "over";
+  }) => (
+    <div className="flex items-baseline justify-between py-[3px]">
+      <span className="text-[10px] text-slate-400 font-medium shrink-0">
+        {num && <span className="font-black text-slate-500 mr-0.5">{num}</span>}
+        {label}
+      </span>
+      <span className={`text-xs font-black ml-2 ${accent === "good" ? "text-emerald-600" : accent === "over" ? "text-rose-600" : "text-slate-900"}`}>
+        {main}
+        {sub && <span className="text-[9px] font-medium text-slate-400 ml-1">{sub}</span>}
+      </span>
+    </div>
+  );
 
   const DayRow = ({ day }: { day: DailyData }) => {
     const dayCost = day.shifts.reduce((s, sh) => {
@@ -80,25 +99,25 @@ export default function DashboardTab({
     const over  = ratio > targetRatio;
     return (
       <tr className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors">
-        <td className="px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap text-xs">{formatDate(day.date)}</td>
-        <td className="px-2 py-1.5">
+        <td className="px-2 py-1 font-bold text-slate-600 whitespace-nowrap text-xs">{formatDate(day.date)}</td>
+        <td className="px-2 py-1">
           <NumberInput
-            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
+            className="bg-white border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
             value={day.salesBudget}
             onChange={(val) => updateData((d) => ({ ...d, dailyDataRecord: { ...d.dailyDataRecord, [day.date]: { ...d.dailyDataRecord[day.date], salesBudget: val } } }))}
           />
         </td>
-        <td className="px-2 py-1.5">
+        <td className="px-2 py-1">
           <NumberInput
-            className="bg-amber-50 border border-amber-100 rounded px-2 py-1 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
+            className="bg-amber-50 border border-amber-100 rounded px-2 py-0.5 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
             value={day.salesActual}
             onChange={(val) => updateData((d) => ({ ...d, dailyDataRecord: { ...d.dailyDataRecord, [day.date]: { ...d.dailyDataRecord[day.date], salesActual: val } } }))}
           />
         </td>
-        <td className={`px-2 py-1.5 text-right font-black text-xs ${ratio > 0 ? (over ? "text-rose-600" : "text-emerald-600") : "text-slate-300"}`}>
+        <td className={`px-2 py-1 text-right font-black text-xs ${ratio > 0 ? (over ? "text-rose-600" : "text-emerald-600") : "text-slate-300"}`}>
           {ratio > 0 ? ratio.toFixed(1) + "%" : "—"}
         </td>
-        <td className="px-2 py-1.5 text-center">
+        <td className="px-2 py-1 text-center">
           {ratio > 0 && (
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${over ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"}`}>
               {over ? "超過" : "良好"}
@@ -113,36 +132,22 @@ export default function DashboardTab({
     <thead className="sticky top-0 z-10">
       <tr className="bg-slate-50 border-b border-slate-200">
         {["日付", "売上予算", "売上実績", "人件費率", "状態"].map((h) => (
-          <th key={h} className="px-2 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+          <th key={h} className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
         ))}
       </tr>
     </thead>
   );
 
-  const Row = ({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: "good" | "over" | "neutral" }) => (
-    <div className="flex items-baseline justify-between py-1.5 border-b border-slate-100 last:border-0">
-      <span className="text-[11px] text-slate-500 font-medium">{label}</span>
-      <div className="text-right">
-        <span className={`text-sm font-black ${
-          highlight === "good" ? "text-emerald-600" :
-          highlight === "over" ? "text-rose-600" :
-          "text-slate-900"
-        }`}>{value}</span>
-        {sub && <span className="ml-1.5 text-[10px] text-slate-400 font-medium">{sub}</span>}
-      </div>
-    </div>
-  );
-
   return (
     <div
-      className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col"
+      className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col gap-2"
       style={{ height: "calc(100dvh - 2rem)" }}
       ref={dashboardRef}
     >
       {/* ヘッダー */}
-      <div className="flex justify-between items-center mb-3 shrink-0">
+      <div className="flex justify-between items-center shrink-0">
         <div>
-          <h1 className="text-base font-black text-slate-900 tracking-tight">
+          <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight">
             {data.year}年{data.month}月 — {currentStore?.name}
           </h1>
           <p className="text-[11px] text-slate-400">ダッシュボード</p>
@@ -161,86 +166,72 @@ export default function DashboardTab({
       </div>
 
       {/* KPI 2ブロック */}
-      <div className="grid grid-cols-2 gap-3 mb-3 shrink-0">
+      <div className="grid grid-cols-2 gap-3 shrink-0">
 
-        {/* 売上ブロック */}
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm" style={{ borderLeft: "3px solid #3b82f6" }}>
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <TrendingUp size={13} className="text-blue-500" />
+        {/* 売上 */}
+        <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-sm" style={{ borderLeft: "3px solid #3b82f6" }}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <TrendingUp size={12} className="text-blue-500" />
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">売上</span>
           </div>
-          <Row label="実績売上" value={`¥${totalActual.toLocaleString()}`} />
-          <Row
-            label="着地予測"
-            value={`¥${Math.round(forecast).toLocaleString()}`}
-            sub={totalBudget > 0 ? `(予算比 ${((forecast / totalBudget) * 100).toFixed(1)}%)` : undefined}
-          />
-          <Row
-            label="予算"
-            value={`¥${totalBudget.toLocaleString()}`}
-            sub={achieveRate > 0 ? `達成率 ${achieveRate.toFixed(1)}%` : undefined}
-            highlight={achieveRate >= 100 ? "good" : "neutral"}
-          />
+          <KpiRow label="実績売上"  main={`¥${totalActual.toLocaleString()}`} />
+          <KpiRow label="着地予測"  main={`¥${Math.round(forecast).toLocaleString()}`}   sub={forecastRate > 0 ? `予算比 ${forecastRate.toFixed(1)}%` : undefined} />
+          <KpiRow label="予算"      main={`¥${totalBudget.toLocaleString()}`}             sub={achieveRate > 0  ? `達成率 ${achieveRate.toFixed(1)}%`   : undefined} accent={achieveRate >= 100 ? "good" : undefined} />
           <div className="mt-2 h-0.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${Math.min(100, achieveRate)}%` }} />
           </div>
         </div>
 
-        {/* 人件費ブロック */}
-        <div className={`border rounded-xl p-3.5 shadow-sm ${forecastRatio > targetRatio ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200"}`} style={{ borderLeft: `3px solid ${forecastRatio > targetRatio ? "#e11d48" : "#f59e0b"}` }}>
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <Users size={13} className={forecastRatio > targetRatio ? "text-rose-500" : "text-amber-500"} />
+        {/* 人件費 */}
+        <div
+          className={`border rounded-xl px-3.5 py-2.5 shadow-sm ${forecastRatio > targetRatio ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200"}`}
+          style={{ borderLeft: `3px solid ${forecastRatio > targetRatio ? "#e11d48" : "#f59e0b"}` }}
+        >
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Users size={12} className={forecastRatio > targetRatio ? "text-rose-500" : "text-amber-500"} />
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">人件費</span>
+            <span className="ml-auto text-[9px] text-slate-400 font-medium">目標 {targetRatio}%</span>
           </div>
 
           {/* ① 実績累計 */}
-          <div className="mb-1.5 pb-1.5 border-b border-slate-100">
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">① 実績累計</div>
-            <Row
-              label="累計コスト"
-              value={`¥${Math.round(actualCost).toLocaleString()}`}
-              sub={actualCostRate > 0 ? `実績比 ${actualCostRate.toFixed(1)}%` : undefined}
-            />
-          </div>
+          <KpiRow
+            num="①" label="実績累計"
+            main={`¥${Math.round(actualCost).toLocaleString()}`}
+            sub={actualCostRate > 0 ? `実績比 ${actualCostRate.toFixed(1)}%` : undefined}
+          />
 
           {/* ② 着地予測 */}
-          <div className="mb-1.5 pb-1.5 border-b border-slate-100">
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">② 着地予測（月末）</div>
-            <Row
-              label="予測コスト"
-              value={`¥${Math.round(forecastedLaborCost).toLocaleString()}`}
-              sub={forecastRatio > 0 ? `予測売上比 ${forecastRatio.toFixed(1)}%` : undefined}
-              highlight={forecastRatio > targetRatio ? "over" : "neutral"}
-            />
-            {budgetLaborCost > 0 && (
-              <div className={`mt-1 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 ${
-                laborDiff > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
-              }`}>
-                <span>{laborDiff > 0 ? "▲ 予算超過" : "▼ 予算良好"}</span>
-                <span className="font-black">
-                  ¥{Math.abs(Math.round(laborDiff)).toLocaleString()}
-                  {laborDiffHours > 0 && ` / ${laborDiffHours.toFixed(1)}h`}
-                  {` / ${Math.abs(laborDiffRate).toFixed(1)}%`}
-                </span>
-              </div>
-            )}
-          </div>
+          <KpiRow
+            num="②" label="着地予測"
+            main={`¥${Math.round(forecastedLaborCost).toLocaleString()}`}
+            sub={forecastRatio > 0 ? `予測売上比 ${forecastRatio.toFixed(1)}%` : undefined}
+            accent={forecastRatio > targetRatio ? "over" : undefined}
+          />
+          {budgetLaborCost > 0 && (
+            <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded my-0.5 ${
+              laborDiff > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+            }`}>
+              <span>{laborDiff > 0 ? "▲ 予算超過" : "▼ 予算良好"}</span>
+              <span className="font-black">
+                ¥{Math.abs(Math.round(laborDiff)).toLocaleString()}
+                {laborDiffHours > 0.1 && ` / ${laborDiffHours.toFixed(1)}h`}
+                {` / ${Math.abs(laborDiffRate).toFixed(1)}%`}
+              </span>
+            </div>
+          )}
 
           {/* ③ 人時売上高 */}
-          <div>
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">③ 人時売上高（生産性）</div>
-            <Row
-              label="売上 ÷ 総労働時間"
-              value={laborProductivity > 0 ? `¥${Math.round(laborProductivity).toLocaleString()} / h` : "—"}
-              sub={actualWorkedHours > 0 ? `(${actualWorkedHours.toFixed(1)}h)` : undefined}
-            />
-          </div>
+          <KpiRow
+            num="③" label="人時売上高"
+            main={laborProductivity > 0 ? `¥${Math.round(laborProductivity).toLocaleString()} / h` : "—"}
+            sub={actualWorkedHours > 0.1 ? `(${actualWorkedHours.toFixed(1)}h稼働)` : undefined}
+          />
         </div>
       </div>
 
-      {/* 日次テーブル — 2列レイアウト（内部スクロール） */}
+      {/* 日次テーブル（残スペースを全部使う） */}
       <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm">
-        <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
+        <div className="px-4 py-1.5 border-b border-slate-200 bg-slate-50 shrink-0">
           <span className="font-bold text-xs text-slate-700">日次売上・人件費シミュレーション</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
@@ -248,17 +239,13 @@ export default function DashboardTab({
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <TableHead />
-                <tbody>
-                  {leftDays.map((day) => <DayRow key={day.date} day={day} />)}
-                </tbody>
+                <tbody>{leftDays.map((day) => <DayRow key={day.date} day={day} />)}</tbody>
               </table>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <TableHead />
-                <tbody>
-                  {rightDays.map((day) => <DayRow key={day.date} day={day} />)}
-                </tbody>
+                <tbody>{rightDays.map((day) => <DayRow key={day.date} day={day} />)}</tbody>
               </table>
             </div>
           </div>
