@@ -34,7 +34,7 @@ export default function App() {
   const { data, updateData, saving, shareUrl, shareModal, setShareModal, handleShare } =
     useAppData(showToast);
 
-  // ── Derived values ──────────────────────────────────────────────────────────
+  // ── 派生値 ──────────────────────────────────────────────────────────────
   const currentDays = data ? getDaysArray(data.year, data.month) : [];
   const weeks = data ? getWeeks(data.year, data.month) : [];
   const currentStaff = data ? data.allStaff.filter((s) => s.storeId === data.selectedStoreId) : [];
@@ -63,8 +63,7 @@ export default function App() {
     : 0;
 
   const daysWithActual = monthDailyData.filter((d) => d.salesActual > 0).length;
-  const forecast =
-    daysWithActual > 0 ? (totalActual / daysWithActual) * currentDays.length : 0;
+  const forecast = daysWithActual > 0 ? (totalActual / daysWithActual) * currentDays.length : 0;
   const forecastRatio = forecast > 0 ? (totalCost / forecast) * 100 : 0;
 
   const alerts = useAlerts(data!, currentStaff, currentDays);
@@ -79,20 +78,20 @@ export default function App() {
     showToast,
   });
 
-  // ── Loading state ────────────────────────────────────────────────────────────
+  // ── ローディング ─────────────────────────────────────────────────────────
   if (!data) {
     return (
       <div className="flex items-center justify-center h-screen bg-white text-slate-400 font-sans">
         <div className="text-center">
-          <div className="w-10 h-10 border-4 border-slate-100 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
-          読み込み中...
+          <div className="w-8 h-8 border-4 border-slate-100 border-t-amber-500 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm font-bold">読み込み中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-500/30">
+    <div className="app-shell font-sans selection:bg-amber-200/50">
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -102,7 +101,7 @@ export default function App() {
         onShare={handleShare}
       />
 
-      <main className="flex-1 p-8 overflow-y-auto min-w-0">
+      <main className="app-main p-4 lg:p-6">
         <AlertBar alerts={alerts} />
 
         {activeTab === "dashboard" && (

@@ -18,22 +18,28 @@ interface ShiftsTabProps {
 export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentStaff, offDays, targetRatio, updateData }: ShiftsTabProps) {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <h1 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">
-        {data.year}年{data.month}月 — シフト作成
-      </h1>
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {weeks.map((_, i) => (
-          <button
-            key={i}
-            className={`px-5 py-2 rounded-xl border text-sm font-bold transition-all ${weekIdx === i ? "bg-blue-50 text-blue-600 border-blue-200 shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-slate-50"}`}
-            onClick={() => setWeekIdx(i)}
-          >
-            第{i + 1}週
-          </button>
-        ))}
+      <div className="flex items-center justify-between mb-3">
+        <h1 className="text-base font-black text-slate-900 tracking-tight">
+          {data.year}年{data.month}月 — シフト作成
+        </h1>
+        <div className="flex gap-1.5">
+          {weeks.map((_, i) => (
+            <button
+              key={i}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                weekIdx === i
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-white text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+              onClick={() => setWeekIdx(i)}
+            >
+              第{i + 1}週
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {weeks[weekIdx]?.map(({ date, dow }) => {
           const day = data.dailyDataRecord[date];
           if (!day) return null;
@@ -50,33 +56,44 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
           const isWeekend = dow === 0 || dow === 6;
 
           return (
-            <div key={date} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-5 py-3.5 bg-slate-50/50 flex justify-between items-center border-b border-slate-200">
-                <div className="flex items-center gap-4">
-                  <span className={`font-black text-base ${isWeekend ? "text-rose-600" : "text-slate-900"}`}>{formatDate(date)}</span>
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 border border-blue-100">予算 ¥{day.salesBudget.toLocaleString()}</span>
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-md border ${ratio > targetRatio ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"}`}>
+            <div key={date} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              {/* 日付ヘッダー */}
+              <div className="px-3 py-2 bg-slate-50 flex justify-between items-center border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className={`font-black text-sm ${isWeekend ? "text-rose-600" : "text-slate-900"}`}>
+                    {formatDate(date)}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                    予算 ¥{day.salesBudget.toLocaleString()}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    ratio > targetRatio
+                      ? "bg-rose-50 text-rose-600 border-rose-100"
+                      : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                  }`}>
                     人件費率 {ratio.toFixed(1)}%
                   </span>
                 </div>
                 <button
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all text-[11px] font-bold"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-amber-700 hover:border-amber-200 transition-all text-[11px] font-bold"
                   onClick={() => updateData((d) => {
-                    const shifts = [...(d.dailyDataRecord[date]?.shifts || []), { storeId: d.selectedStoreId, staffId: "", inTime: "09:00", outTime: "18:00", breakMinutes: 60, isHelp: false }];
+                    const shifts = [...(d.dailyDataRecord[date]?.shifts || []), {
+                      storeId: d.selectedStoreId, staffId: "", inTime: "09:00", outTime: "18:00", breakMinutes: 60, isHelp: false,
+                    }];
                     return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
                   })}
                 >
-                  <Plus size={14} /> スタッフ追加
+                  <Plus size={12} /> 追加
                 </button>
               </div>
 
               {storeShifts.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50">
-                        {["#", "名前", "IN", "OUT", "休憩", "他店ヘルプ", "実働", "概算人件費", ""].map((h) => (
-                          <th key={h} className="px-5 py-2.5 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">{h}</th>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {["#", "名前", "IN", "OUT", "休憩(分)", "ヘルプ", "実働", "人件費", ""].map((h) => (
+                          <th key={h} className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -89,11 +106,11 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                         const cost = staff ? calcDailyCost(shift, staff, offDays, date) : 0;
                         const alreadySelected = day.shifts.map((s) => s.staffId).filter((id) => id && id !== shift.staffId);
                         return (
-                          <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                            <td className="px-5 py-3 text-slate-400 font-bold w-10 text-center">{idx + 1}</td>
-                            <td className="px-5 py-3">
+                          <tr key={idx} className="border-b border-slate-100 hover:bg-amber-50/20 transition-colors">
+                            <td className="px-3 py-1.5 text-slate-300 font-bold text-xs text-center w-8">{idx + 1}</td>
+                            <td className="px-3 py-1.5">
                               <select
-                                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 min-w-[120px]"
+                                className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 min-w-[100px]"
                                 value={shift.staffId}
                                 onChange={(e) => updateData((d) => {
                                   const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, staffId: e.target.value } : s);
@@ -107,10 +124,10 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                               </select>
                             </td>
                             {(["inTime", "outTime"] as const).map((field) => (
-                              <td key={field} className="px-5 py-3">
+                              <td key={field} className="px-3 py-1.5">
                                 <input
                                   type="time"
-                                  className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 w-24"
+                                  className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 w-22"
                                   value={shift[field]}
                                   onChange={(e) => updateData((d) => {
                                     const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, [field]: e.target.value } : s);
@@ -119,9 +136,9 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                                 />
                               </td>
                             ))}
-                            <td className="px-5 py-3">
+                            <td className="px-3 py-1.5">
                               <NumberInput
-                                className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500 w-16 text-right"
+                                className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 w-14 text-right"
                                 value={shift.breakMinutes}
                                 onChange={(val) => updateData((d) => {
                                   const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, breakMinutes: val } : s);
@@ -129,7 +146,7 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                                 })}
                               />
                             </td>
-                            <td className="px-5 py-3 text-center">
+                            <td className="px-3 py-1.5 text-center">
                               <input
                                 type="checkbox"
                                 checked={shift.isHelp || false}
@@ -137,20 +154,24 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                                   const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, isHelp: e.target.checked } : s);
                                   return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
                                 })}
-                                className="w-4 h-4 rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500/20"
+                                className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500/20"
                               />
                             </td>
-                            <td className="px-5 py-3 text-right font-mono text-slate-500 text-xs">{Math.floor(net / 60)}h{net % 60}m</td>
-                            <td className="px-5 py-3 text-right font-black text-slate-900">¥{Math.round(cost).toLocaleString()}</td>
-                            <td className="px-5 py-3 text-center">
+                            <td className="px-3 py-1.5 text-right font-mono text-slate-500 text-xs whitespace-nowrap">
+                              {Math.floor(net / 60)}h{net % 60}m
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-black text-slate-900 text-xs whitespace-nowrap">
+                              ¥{Math.round(cost).toLocaleString()}
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
                               <button
-                                className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                                className="text-slate-300 hover:text-rose-500 transition-colors"
                                 onClick={() => updateData((d) => {
                                   const shifts = d.dailyDataRecord[date].shifts.filter((_, i) => i !== idx);
                                   return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
                                 })}
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                               </button>
                             </td>
                           </tr>
@@ -160,7 +181,7 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                   </table>
                 </div>
               ) : (
-                <div className="py-10 text-center text-slate-400 text-xs font-medium italic">シフト未登録</div>
+                <div className="py-6 text-center text-slate-300 text-xs font-medium">シフト未登録</div>
               )}
             </div>
           );

@@ -2,107 +2,119 @@ import { useState } from "react";
 import type { RefObject } from "react";
 import type { AppData, Store } from "../types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _html2pdf: any = null;
-async function getHtml2pdf() {
-  if (!_html2pdf) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const m: any = await import("html2pdf.js");
-    _html2pdf = m.default ?? m;
-  }
-  return _html2pdf;
-}
-
-/** タイムアウト付きPromise — html2canvas がハングしたときの安全弁 */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("PDF生成がタイムアウトしました")), ms)
-    ),
-  ]);
-}
-
 /**
- * oklch / oklab 等 html2canvas が解析できない色を
- * ブラウザに計算させて rgb() に変換し、インラインスタイルで上書き。
- * 戻り値は restore 関数（キャプチャ後に必ず呼ぶこと）。
+ * ブラウザネイティブの印刷エンジンを使って PDF 出力する。
+ * html2canvas/html2pdf.js は Tailwind v4 の oklch カラーと相性が悪いため廃止。
+ * 隠し iframe に要素の HTML を書き込み、contentWindow.print() で印刷ダイアログを開く。
+ * ユーザーは「PDF として保存」を選択するだけ。
  */
-function flattenColors(element: HTMLElement): () => void {
-  const PROPS = [
-    "color",
-    "background-color",
-    "border-top-color",
-    "border-right-color",
-    "border-bottom-color",
-    "border-left-color",
-  ];
-  type Entry = { el: HTMLElement; prop: string; prev: string };
-  const list: Entry[] = [];
+function printElement(element: HTMLElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // ① 入力値を outerHTML に反映（DOM property は attribute に含まれないため）
+    const clone = element.cloneNode(true) as HTMLElement;
+    element.querySelectorAll("input").forEach((input, i) => {
+      const ci = clone.querySelectorAll("input")[i] as HTMLInputElement | undefined;
+      if (ci) ci.setAttribute("value", input.value);
+    });
 
-  const els = [element, ...Array.from(element.querySelectorAll<HTMLElement>("*"))];
-  els.forEach((el) => {
-    if (!(el instanceof HTMLElement)) return;
-    const computed = window.getComputedStyle(el);
-    PROPS.forEach((prop) => {
-      const val = computed.getPropertyValue(prop);
-      // getComputedStyle は必ず rgb/rgba を返す
-      if (val && val.startsWith("rgb")) {
-        list.push({ el, prop, prev: el.style.getPropertyValue(prop) });
-        el.style.setProperty(prop, val, "important");
+    // ② 現在のページの <link> / <style> をすべてコピー（Tailwind CSS を含む）
+    const headHTML = Array.from(
+      document.head.querySelectorAll('link[rel="stylesheet"], style')
+    )
+      .map((el) => el.outerHTML)
+      .join("\n");
+
+    // ③ 隠し iframe を作成
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText =
+      "position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0;visibility:hidden;";
+    document.body.appendChild(iframe);
+
+    const frameDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (!frameDoc) {
+      document.body.removeChild(iframe);
+      reject(new Error("iframe の作成に失敗しました"));
+      return;
+    }
+
+    // ④ iframe に HTML を書き込む
+    frameDoc.open();
+    frameDoc.write(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  ${headHTML}
+  <style>
+    /* 背景色・色を印刷に反映 */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    @media print {
+      @page { margin: 8mm; size: A4 portrait; }
+      body  { margin: 0; background: #fff; }
+      /* PDF 出力時に不要な要素を非表示 */
+      button, .pdf-hide, [data-pdf-hide] { display: none !important; }
+      /* 入力欄は値のみ表示 */
+      input {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
+        padding: 0 !important;
       }
-    });
+      /* ページブレーク制御 */
+      .html2pdf__page-break { page-break-before: always; }
+    }
+    @media screen {
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  ${clone.outerHTML}
+</body>
+</html>`);
+    frameDoc.close();
+
+    // ⑤ ロード完了後に印刷ダイアログを開く
+    const doprint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        reject(e);
+      } finally {
+        // 印刷ダイアログを閉じた後に iframe を除去
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch { /* ignore */ }
+          resolve();
+        }, 2000);
+      }
+    };
+
+    // onload が発火しない環境のフォールバック
+    let loaded = false;
+    iframe.onload = () => {
+      if (loaded) return;
+      loaded = true;
+      setTimeout(doprint, 300);
+    };
+    // 1.5秒後に発火していなければ強制実行
+    setTimeout(() => {
+      if (!loaded) {
+        loaded = true;
+        doprint();
+      }
+    }, 1500);
   });
-
-  return () => {
-    list.forEach(({ el, prop, prev }) => {
-      if (prev === "") el.style.removeProperty(prop);
-      else el.style.setProperty(prop, prev);
-    });
-  };
-}
-
-/**
- * -left-[9999px] などオフスクリーンにある要素をキャプチャできるよう
- * 一時的に画面左上（z-index: -9999）へ移動。
- * 戻り値は restore 関数。
- */
-function showForCapture(element: HTMLElement): () => void {
-  const rect = element.getBoundingClientRect();
-  // 既に可視範囲にあれば何もしない
-  if (rect.left > -50 && rect.top > -50 && rect.width > 0) {
-    return () => {};
-  }
-  const prevStyle = element.getAttribute("style") ?? "";
-  element.style.cssText = [
-    prevStyle,
-    "position:fixed!important",
-    "left:0!important",
-    "top:0!important",
-    "z-index:-9999!important",
-    "visibility:visible!important",
-    "pointer-events:none!important",
-  ].join(";");
-  return () => {
-    if (prevStyle) element.setAttribute("style", prevStyle);
-    else element.removeAttribute("style");
-  };
-}
-
-/** クローン後に注入するCSSの最小セット */
-function buildOnClone() {
-  return (clonedDoc: Document) => {
-    const s = clonedDoc.createElement("style");
-    s.textContent = `
-      * { transition:none!important; animation:none!important; color-scheme:light!important; }
-      .pdf-hide { display:none!important; }
-      .fixed, .sticky { position:static!important; }
-    `;
-    clonedDoc.head.appendChild(s);
-  };
 }
 
 // ─────────────────────────────────────────────────────────────
+
 interface UsePdfExportParams {
   printRef: RefObject<HTMLDivElement | null>;
   allWeeksPrintRef: RefObject<HTMLDivElement | null>;
@@ -118,58 +130,21 @@ export function usePdfExport({
   allWeeksPrintRef,
   dashboardRef,
   data,
-  currentStore,
-  weekIdx,
+  currentStore: _currentStore,
+  weekIdx: _weekIdx,
   showToast,
 }: UsePdfExportParams) {
   const [isExporting, setIsExporting] = useState(false);
 
-  /** 共通エクスポート処理 */
-  async function runExport(
-    element: HTMLElement,
-    filename: string,
-    margin: number | [number, number] = 0
-  ) {
+  async function runPrint(element: HTMLElement) {
     setIsExporting(true);
-
-    // 1. オフスクリーン要素の一時可視化
-    const restoreVisibility = showForCapture(element);
-    // 2. oklch → rgb 変換（html2canvas が解析できるよう事前処理）
-    const restoreColors = flattenColors(element);
-    // 3. PDF用クラス追加
-    element.classList.add("pdf-export");
-
-    // DOM 反映を待つ
-    await new Promise<void>((r) => setTimeout(r, 150));
-
-    const opt = {
-      margin,
-      filename,
-      image: { type: "jpeg", quality: 0.95 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        backgroundColor: "#ffffff",
-        onclone: buildOnClone(),
-      },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-      pagebreak: { mode: ["css", "legacy"] },
-    };
-
     try {
-      const lib = await getHtml2pdf();
-      await withTimeout(lib().set(opt).from(element).save(), 60_000);
-      showToast("PDFを出力しました");
+      await printElement(element);
+      showToast("印刷ダイアログを開きました（「PDFとして保存」を選択してください）");
     } catch (err) {
-      console.error("PDF Export Error:", err);
-      showToast("PDF出力に失敗しました", "error");
+      console.error("Print Error:", err);
+      showToast("印刷に失敗しました", "error");
     } finally {
-      // 必ず復元・アンロック
-      element.classList.remove("pdf-export");
-      restoreColors();
-      restoreVisibility();
       setIsExporting(false);
     }
   }
@@ -178,22 +153,12 @@ export function usePdfExport({
     if (isExporting || !data) return;
     const element = allWeeks ? allWeeksPrintRef.current : printRef.current;
     if (!element) return;
-
-    const y = data.year;
-    const m = String(data.month).padStart(2, "0");
-    const filename = allWeeks
-      ? `shift_${y}_${m}_全週.pdf`
-      : `shift_${y}_${m}_第${weekIdx + 1}週.pdf`;
-
-    await runExport(element, filename);
+    await runPrint(element);
   };
 
   const exportDashboardToPDF = async () => {
     if (isExporting || !data || !dashboardRef.current) return;
-    const y = data.year;
-    const m = String(data.month).padStart(2, "0");
-    const filename = `dashboard_${currentStore?.name ?? "store"}_${y}_${m}.pdf`;
-    await runExport(dashboardRef.current, filename, [10, 10]);
+    await runPrint(dashboardRef.current);
   };
 
   return { isExporting, exportToPDF, exportDashboardToPDF };
