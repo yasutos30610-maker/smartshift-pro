@@ -2,9 +2,17 @@ import { useState } from "react";
 import type { RefObject } from "react";
 import type { AppData, Store } from "../types";
 
-// html2pdf has no types — minimal declaration
+// html2pdf.js には型定義がないため動的ロードで回避
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const html2pdf: any;
+let _html2pdf: any = null;
+async function getHtml2pdf() {
+  if (!_html2pdf) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = await import("html2pdf.js");
+    _html2pdf = m.default ?? m;
+  }
+  return _html2pdf;
+}
 
 function buildOnClone() {
   return (clonedDoc: Document) => {
@@ -87,7 +95,7 @@ export function usePdfExport({
 
     setTimeout(async () => {
       try {
-        const lib = typeof html2pdf === "function" ? html2pdf : html2pdf.default;
+        const lib = await getHtml2pdf();
         await lib().set(opt).from(element).save();
         element.classList.remove("pdf-export");
         showToast("シフトを出力しました");
@@ -119,7 +127,7 @@ export function usePdfExport({
 
     setTimeout(async () => {
       try {
-        const lib = typeof html2pdf === "function" ? html2pdf : html2pdf.default;
+        const lib = await getHtml2pdf();
         await lib().set(opt).from(element).save();
         element.classList.remove("pdf-export");
         setIsExporting(false);

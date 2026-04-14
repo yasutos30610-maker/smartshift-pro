@@ -76,13 +76,19 @@ export default function WeeklyPrintGrid({ week, weekNumber, currentStaff, data, 
                           {shift.outTime}
                           <br />
                           <span className="text-[8px] text-blue-600">{(net / 60).toFixed(1)}h</span>
+                          {shift.isHelp && (
+                            <>
+                              <br />
+                              <span className="text-[8px] font-black bg-emerald-600 text-white px-1 rounded">HELP</span>
+                            </>
+                          )}
                         </div>
                       </td>
                     );
                   }
                   return (
-                    <td key={d.date} className="border border-slate-300 p-1 text-center bg-slate-50/30">
-                      <span className="text-[10px] font-bold text-slate-300">公休</span>
+                    <td key={d.date} className="border border-slate-300 p-1 text-center bg-slate-100/60">
+                      <span className="text-[10px] font-bold text-slate-400">公休</span>
                     </td>
                   );
                 })}
