@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { RefObject } from "react";
 import type { AppData, Store } from "../types";
 
-// html2pdf.js には型定義がないため動的ロードで回避
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _html2pdf: any = null;
 async function getHtml2pdf() {
@@ -14,45 +13,96 @@ async function getHtml2pdf() {
   return _html2pdf;
 }
 
-function buildOnClone() {
-  return (clonedDoc: Document) => {
-    const style = clonedDoc.createElement("style");
-    style.innerHTML = `
-      * {
-        transition: none !important;
-        animation: none !important;
-        color-interpolation: sRGB !important;
-        color-scheme: light !important;
-      }
-      .pdf-export, .pdf-export * {
-        background-image: none !important;
-        filter: none !important;
-        backdrop-filter: none !important;
-        box-shadow: none !important;
-        text-shadow: none !important;
-        transform: none !important;
-        visibility: visible !important;
-      }
-      .pdf-export .fixed, .pdf-export .sticky { position: static !important; }
-    `;
-    clonedDoc.head.appendChild(style);
+/** タイムアウト付きPromise — html2canvas がハングしたときの安全弁 */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("PDF生成がタイムアウトしました")), ms)
+    ),
+  ]);
+}
 
-    const all = clonedDoc.getElementsByTagName("*");
-    for (let i = 0; i < all.length; i++) {
-      const el = all[i] as HTMLElement;
-      if (el.style) {
-        const props = ["color", "backgroundColor", "borderColor", "fill", "stroke"] as const;
-        props.forEach((prop) => {
-          const val = (el.style as unknown as Record<string, string>)[prop];
-          if (val && (val.includes("oklab") || val.includes("oklch"))) {
-            el.style.setProperty(prop, "#888888", "important");
-          }
-        });
+/**
+ * oklch / oklab 等 html2canvas が解析できない色を
+ * ブラウザに計算させて rgb() に変換し、インラインスタイルで上書き。
+ * 戻り値は restore 関数（キャプチャ後に必ず呼ぶこと）。
+ */
+function flattenColors(element: HTMLElement): () => void {
+  const PROPS = [
+    "color",
+    "background-color",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+  ];
+  type Entry = { el: HTMLElement; prop: string; prev: string };
+  const list: Entry[] = [];
+
+  const els = [element, ...Array.from(element.querySelectorAll<HTMLElement>("*"))];
+  els.forEach((el) => {
+    if (!(el instanceof HTMLElement)) return;
+    const computed = window.getComputedStyle(el);
+    PROPS.forEach((prop) => {
+      const val = computed.getPropertyValue(prop);
+      // getComputedStyle は必ず rgb/rgba を返す
+      if (val && val.startsWith("rgb")) {
+        list.push({ el, prop, prev: el.style.getPropertyValue(prop) });
+        el.style.setProperty(prop, val, "important");
       }
-    }
+    });
+  });
+
+  return () => {
+    list.forEach(({ el, prop, prev }) => {
+      if (prev === "") el.style.removeProperty(prop);
+      else el.style.setProperty(prop, prev);
+    });
   };
 }
 
+/**
+ * -left-[9999px] などオフスクリーンにある要素をキャプチャできるよう
+ * 一時的に画面左上（z-index: -9999）へ移動。
+ * 戻り値は restore 関数。
+ */
+function showForCapture(element: HTMLElement): () => void {
+  const rect = element.getBoundingClientRect();
+  // 既に可視範囲にあれば何もしない
+  if (rect.left > -50 && rect.top > -50 && rect.width > 0) {
+    return () => {};
+  }
+  const prevStyle = element.getAttribute("style") ?? "";
+  element.style.cssText = [
+    prevStyle,
+    "position:fixed!important",
+    "left:0!important",
+    "top:0!important",
+    "z-index:-9999!important",
+    "visibility:visible!important",
+    "pointer-events:none!important",
+  ].join(";");
+  return () => {
+    if (prevStyle) element.setAttribute("style", prevStyle);
+    else element.removeAttribute("style");
+  };
+}
+
+/** クローン後に注入するCSSの最小セット */
+function buildOnClone() {
+  return (clonedDoc: Document) => {
+    const s = clonedDoc.createElement("style");
+    s.textContent = `
+      * { transition:none!important; animation:none!important; color-scheme:light!important; }
+      .pdf-hide { display:none!important; }
+      .fixed, .sticky { position:static!important; }
+    `;
+    clonedDoc.head.appendChild(s);
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
 interface UsePdfExportParams {
   printRef: RefObject<HTMLDivElement | null>;
   allWeeksPrintRef: RefObject<HTMLDivElement | null>;
@@ -74,71 +124,76 @@ export function usePdfExport({
 }: UsePdfExportParams) {
   const [isExporting, setIsExporting] = useState(false);
 
+  /** 共通エクスポート処理 */
+  async function runExport(
+    element: HTMLElement,
+    filename: string,
+    margin: number | [number, number] = 0
+  ) {
+    setIsExporting(true);
+
+    // 1. オフスクリーン要素の一時可視化
+    const restoreVisibility = showForCapture(element);
+    // 2. oklch → rgb 変換（html2canvas が解析できるよう事前処理）
+    const restoreColors = flattenColors(element);
+    // 3. PDF用クラス追加
+    element.classList.add("pdf-export");
+
+    // DOM 反映を待つ
+    await new Promise<void>((r) => setTimeout(r, 150));
+
+    const opt = {
+      margin,
+      filename,
+      image: { type: "jpeg", quality: 0.95 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        backgroundColor: "#ffffff",
+        onclone: buildOnClone(),
+      },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"] },
+    };
+
+    try {
+      const lib = await getHtml2pdf();
+      await withTimeout(lib().set(opt).from(element).save(), 60_000);
+      showToast("PDFを出力しました");
+    } catch (err) {
+      console.error("PDF Export Error:", err);
+      showToast("PDF出力に失敗しました", "error");
+    } finally {
+      // 必ず復元・アンロック
+      element.classList.remove("pdf-export");
+      restoreColors();
+      restoreVisibility();
+      setIsExporting(false);
+    }
+  }
+
   const exportToPDF = async (allWeeks = false) => {
     if (isExporting || !data) return;
     const element = allWeeks ? allWeeksPrintRef.current : printRef.current;
     if (!element) return;
 
-    setIsExporting(true);
-    element.classList.add("pdf-export");
+    const y = data.year;
+    const m = String(data.month).padStart(2, "0");
+    const filename = allWeeks
+      ? `shift_${y}_${m}_全週.pdf`
+      : `shift_${y}_${m}_第${weekIdx + 1}週.pdf`;
 
-    const opt = {
-      margin: 0,
-      filename: allWeeks
-        ? `shift_full_month_${data.year}_${data.month}.pdf`
-        : `shift_week_${weekIdx + 1}_${data.year}_${data.month}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, backgroundColor: "#ffffff", onclone: buildOnClone() },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-      pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-    };
-
-    setTimeout(async () => {
-      try {
-        const lib = await getHtml2pdf();
-        await lib().set(opt).from(element).save();
-        element.classList.remove("pdf-export");
-        showToast("シフトを出力しました");
-      } catch (error) {
-        console.error("PDF Export Error:", error);
-        element.classList.remove("pdf-export");
-        showToast("出力に失敗しました", "error");
-      } finally {
-        setIsExporting(false);
-      }
-    }, 200);
+    await runExport(element, filename);
   };
 
-  const exportDashboardToPDF = () => {
-    if (!dashboardRef.current || isExporting || !data) return;
-    const element = dashboardRef.current;
-
-    setIsExporting(true);
-    element.classList.add("pdf-export");
-
-    const opt = {
-      margin: [10, 10] as [number, number],
-      filename: `dashboard_${currentStore?.name}_${data.year}_${data.month}.pdf`,
-      image: { type: "jpeg" as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", onclone: buildOnClone() },
-      jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
-      pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-    };
-
-    setTimeout(async () => {
-      try {
-        const lib = await getHtml2pdf();
-        await lib().set(opt).from(element).save();
-        element.classList.remove("pdf-export");
-        setIsExporting(false);
-        showToast("ダッシュボードを出力しました");
-      } catch (err) {
-        console.error("PDF Export error:", err);
-        element.classList.remove("pdf-export");
-        setIsExporting(false);
-        showToast("出力に失敗しました", "error");
-      }
-    }, 200);
+  const exportDashboardToPDF = async () => {
+    if (isExporting || !data || !dashboardRef.current) return;
+    const y = data.year;
+    const m = String(data.month).padStart(2, "0");
+    const filename = `dashboard_${currentStore?.name ?? "store"}_${y}_${m}.pdf`;
+    await runExport(dashboardRef.current, filename, [10, 10]);
   };
 
   return { isExporting, exportToPDF, exportDashboardToPDF };
