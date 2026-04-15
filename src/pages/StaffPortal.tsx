@@ -216,7 +216,6 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
 // ─── シフト提出タブ ────────────────────────────────────────────────────────
 interface SubmitTabProps {
   staff: Staff;
-  appData: AppData;
   onToast: (msg: string, type?: "success" | "error") => void;
 }
 
@@ -228,7 +227,7 @@ function focusNextTime(e: React.KeyboardEvent<HTMLInputElement>) {
   if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
 }
 
-function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
+function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const now = new Date();
   const curYear = now.getFullYear();
   const curMonth = now.getMonth() + 1;
@@ -381,7 +380,9 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
         <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 rounded-t-xl flex items-center justify-between">
           <span className="text-[10px] font-black text-slate-400">{targetYear}年{targetMonth}月</span>
           {existingRequest && (
-            <span className="text-[10px] text-blue-400 font-bold">前回 ▶ 青字で表示</span>
+            <span className="text-[10px] text-blue-400 font-bold">
+              前回＝{new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出時 ▶ 青字
+            </span>
           )}
         </div>
         <div className="divide-y divide-slate-100">
@@ -442,9 +443,11 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
                   )}
                 </div>
                 {/* 前回申請（サブ行） */}
-                {prevShift && (
+                {prevShift && existingRequest && (
                   <div className="ml-7 mt-1 flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400">前回</span>
+                    <span className="text-[10px] text-slate-400">
+                      前回＝{new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出時
+                    </span>
                     <span className="text-[10px] font-bold text-blue-500">{prevShift.inTime}</span>
                     <span className="text-[10px] text-slate-300">–</span>
                     <span className="text-[10px] font-bold text-blue-500">{prevShift.outTime}</span>
@@ -820,7 +823,7 @@ export default function StaffPortal() {
       {/* Content */}
       <main className="p-4 max-w-3xl mx-auto">
         {activeTab === "submit" && (
-          <SubmitTab staff={loggedInStaff} appData={appData} onToast={showToast} />
+          <SubmitTab staff={loggedInStaff} onToast={showToast} />
         )}
         {activeTab === "daily" && (
           <DailyView appData={appData} weeks={weeks} />
