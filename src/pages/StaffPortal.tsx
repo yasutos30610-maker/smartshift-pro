@@ -17,9 +17,12 @@ function timeToPercent(time: string): number {
   return Math.max(0, Math.min(100, ((total - START_HOUR) / (END_HOUR - START_HOUR)) * 100));
 }
 
-const HOUR_LABELS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
-  const h = START_HOUR + i;
-  return h >= 24 ? `${h - 24}:00` : `${h}:00`;
+// 30分単位のグリッドスロット：整数時のみラベル表示、:30は線のみ
+const GRID_SLOTS = Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => {
+  const h = START_HOUR + Math.floor(i / 2);
+  const isHour = i % 2 === 0;
+  const label = isHour ? (h >= 24 ? `${h - 24}` : `${h}`) : "";
+  return { label, isHour };
 });
 
 // ─── ログイン画面 ──────────────────────────────────────────────────────────
@@ -577,49 +580,62 @@ function DailyView({ appData, weeks }: DailyViewProps) {
                 {shifts.length === 0 ? (
                   <div className="px-3 py-3 text-[11px] text-slate-300 text-center">シフトなし</div>
                 ) : (
-                  <div className="px-3 py-2">
-                    <div className="flex mb-1" style={{ marginLeft: "7rem" }}>
-                      {HOUR_LABELS.map((label, i) => (
-                        <div key={i} className="flex-1 text-[9px] text-slate-300 font-bold border-l border-slate-100 pl-0.5" style={{ minWidth: 0 }}>
-                          {label}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="space-y-1">
-                      {shifts.map((sh) => {
-                        const s = currentStaff.find((st) => st.id === sh.staffId);
-                        const left = timeToPercent(sh.inTime);
-                        const right = timeToPercent(sh.outTime);
-                        const width = Math.max(0, right - left);
-                        const isHelp = sh.isHelp;
-                        const isSeishain = s?.type === "社員";
-                        const badgeCls = isHelp ? "bg-emerald-100 text-emerald-700 border-emerald-200" : isSeishain ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200";
-                        const barCls = isHelp ? "bg-emerald-100 border-emerald-300 text-emerald-800" : isSeishain ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-amber-100 border-amber-300 text-amber-800";
-
-                        return (
-                          <div key={sh.staffId} className="flex items-center gap-2 h-6">
-                            <div className="w-28 shrink-0 flex items-center gap-1 overflow-hidden">
-                              <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
-                                {isHelp ? "HELP" : isSeishain ? "社員" : "AP"}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-700 truncate">{s?.name ?? "—"}</span>
-                            </div>
-                            <div className="flex-1 relative h-5">
-                              <div className="absolute inset-0 flex pointer-events-none">
-                                {HOUR_LABELS.map((_, i) => (
-                                  <div key={i} className="flex-1 border-l border-slate-100" />
-                                ))}
-                              </div>
-                              <div
-                                className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls}`}
-                                style={{ left: `${left}%`, width: `${width}%` }}
-                              >
-                                <span className="whitespace-nowrap">{sh.inTime}–{sh.outTime}</span>
-                              </div>
-                            </div>
+                  <div className="overflow-x-auto">
+                    <div style={{ minWidth: "560px" }} className="px-3 py-2">
+                      {/* 時間軸 */}
+                      <div className="flex mb-1" style={{ marginLeft: "6rem" }}>
+                        {GRID_SLOTS.map((slot, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 border-l border-slate-100 pl-0.5"
+                            style={{ minWidth: 0 }}
+                          >
+                            <span className={`text-[9px] font-bold leading-none ${slot.isHour ? "text-slate-400" : "text-transparent"}`}>
+                              {slot.label || "·"}
+                            </span>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
+                      {/* シフト行 */}
+                      <div className="space-y-1">
+                        {shifts.map((sh) => {
+                          const s = currentStaff.find((st) => st.id === sh.staffId);
+                          const left = timeToPercent(sh.inTime);
+                          const right = timeToPercent(sh.outTime);
+                          const width = Math.max(0, right - left);
+                          const isHelp = sh.isHelp;
+                          const isSeishain = s?.type === "社員";
+                          const badgeCls = isHelp ? "bg-emerald-100 text-emerald-700 border-emerald-200" : isSeishain ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200";
+                          const barCls = isHelp ? "bg-emerald-100 border-emerald-300 text-emerald-800" : isSeishain ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-amber-100 border-amber-300 text-amber-800";
+
+                          return (
+                            <div key={sh.staffId} className="flex items-center gap-2 h-6">
+                              <div className="shrink-0 flex items-center gap-1 overflow-hidden" style={{ width: "6rem" }}>
+                                <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
+                                  {isHelp ? "HLP" : isSeishain ? "社員" : "AP"}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-700 truncate">{s?.name ?? "—"}</span>
+                              </div>
+                              <div className="flex-1 relative h-5">
+                                <div className="absolute inset-0 flex pointer-events-none">
+                                  {GRID_SLOTS.map((slot, i) => (
+                                    <div
+                                      key={i}
+                                      className={`flex-1 border-l ${slot.isHour ? "border-slate-200" : "border-slate-100"}`}
+                                    />
+                                  ))}
+                                </div>
+                                <div
+                                  className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls}`}
+                                  style={{ left: `${left}%`, width: `${width}%` }}
+                                >
+                                  <span className="whitespace-nowrap">{sh.inTime}–{sh.outTime}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -721,9 +737,9 @@ function WeeklyView({ appData, weeks }: WeeklyViewProps) {
                         weeklyMins += net;
                         return (
                           <td key={d.date} className="px-1 py-1.5 text-center align-middle">
-                            <div className="text-[10px] font-black text-slate-800 leading-snug">{shift.inTime}</div>
+                            <div className="text-[10px] font-black text-slate-800 leading-snug">{shift.inTime.replace(":00","")}</div>
                             <div className="text-[9px] text-slate-300 leading-none">↓</div>
-                            <div className="text-[10px] font-black text-slate-800 leading-snug">{shift.outTime}</div>
+                            <div className="text-[10px] font-black text-slate-800 leading-snug">{shift.outTime.replace(":00","")}</div>
                             {shift.isHelp && (
                               <div className="mt-0.5">
                                 <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">HELP</span>
