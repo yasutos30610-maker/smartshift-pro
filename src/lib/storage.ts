@@ -11,6 +11,19 @@ function rowId(data: AppData): string {
 
 // ─── ロード ────────────────────────────────────────────────────────────────
 
+const SESSION_HINT_KEY = "smartshift_last_session";
+
+type SessionHint = { storeId: string; year: number; month: number };
+
+function loadSessionHint(): SessionHint | null {
+  try {
+    const raw = localStorage.getItem(SESSION_HINT_KEY);
+    return raw ? (JSON.parse(raw) as SessionHint) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadFromStorage(shareId: string | null = null): Promise<AppData | null> {
   // 共有スナップショットから読み込み
   if (shareId) {
@@ -30,17 +43,33 @@ export async function loadFromStorage(shareId: string | null = null): Promise<Ap
     return null;
   }
 
-  // 通常のデータをローカルストレージから先読み（高速表示）
+  // ローカルキャッシュを先読み（即時表示用）
+  let localData: AppData | null = null;
   const local = localStorage.getItem(LOCAL_KEY);
   if (local) {
     try {
-      return JSON.parse(local) as AppData;
-    } catch {
-      // 破損している場合は無視
-    }
+      localData = JSON.parse(local) as AppData;
+    } catch { /* 破損は無視 */ }
   }
 
-  return null;
+  // Supabase から最新データを取得（クロスブラウザ対応）
+  // ヒント: ローカルデータがあればそのID, なければ前回セッション情報を使用
+  const hint: SessionHint | null = localData
+    ? { storeId: localData.selectedStoreId, year: localData.year, month: localData.month }
+    : loadSessionHint();
+
+  if (hint) {
+    try {
+      const remote = await syncFromSupabase(hint.storeId, hint.year, hint.month);
+      if (remote) {
+        // Supabase のデータを正とする（最新の編集を反映）
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(remote));
+        return remote;
+      }
+    } catch { /* Supabase が使えない場合はローカルで続行 */ }
+  }
+
+  return localData;
 }
 
 // ─── セーブ ────────────────────────────────────────────────────────────────
@@ -68,6 +97,12 @@ export async function saveToStorage(
   // ローカルストレージへ即時保存（オフライン対応）
   try {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+    // 別ブラウザからの復元用ヒントも保存
+    localStorage.setItem(SESSION_HINT_KEY, JSON.stringify({
+      storeId: data.selectedStoreId,
+      year: data.year,
+      month: data.month,
+    }));
   } catch {
     // ストレージ容量超過などは無視
   }
