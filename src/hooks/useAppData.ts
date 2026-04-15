@@ -28,11 +28,12 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         setSaving(true);
-        await saveToStorage(newData, shareId);
+        const ok = await saveToStorage(newData, shareId);
         setSaving(false);
+        if (!ok) showToast("クラウド保存に失敗しました。ネット接続を確認してください", "error");
       }, 1500);
     },
-    [shareId]
+    [shareId, showToast]
   );
 
   const updateData = useCallback(
