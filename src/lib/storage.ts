@@ -174,3 +174,54 @@ export async function syncFromSupabase(
     return null;
   }
 }
+
+// ─── クラウド診断・強制同期 ───────────────────────────────────────────────────
+export async function testSupabaseConnection(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const { error } = await supabase.from("shift_data").select("id").limit(1);
+    if (error) {
+      return { ok: false, message: `接続エラー: ${error.message} (${error.code})` };
+    }
+    return { ok: true, message: "Supabase 接続OK" };
+  } catch (e) {
+    return { ok: false, message: `接続失敗: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+export async function forceSaveToCloud(data: AppData): Promise<{ ok: boolean; message: string }> {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+    saveHint(data);
+    const { error } = await supabase.from("shift_data").upsert({
+      id: rowId(data),
+      store_id: data.selectedStoreId,
+      year: data.year,
+      month: data.month,
+      payload: data,
+    });
+    if (error) {
+      return { ok: false, message: `保存失敗: ${error.message} (${error.code})` };
+    }
+    return { ok: true, message: "クラウドに保存しました" };
+  } catch (e) {
+    return { ok: false, message: `保存エラー: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+export async function forceLoadFromCloud(
+  storeId: string,
+  year: number,
+  month: number
+): Promise<{ data: AppData | null; message: string }> {
+  try {
+    const result = await _fetchById(storeId, year, month);
+    if (result) {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(result));
+      saveHint(result);
+      return { data: result, message: "クラウドから読み込みました" };
+    }
+    return { data: null, message: "クラウドにデータが見つかりませんでした" };
+  } catch (e) {
+    return { data: null, message: `読み込みエラー: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}

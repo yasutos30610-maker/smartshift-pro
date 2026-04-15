@@ -24,10 +24,10 @@ function DayRow({ day, currentStaff, offDays, targetRatio, updateData }: DayRowP
 
   return (
     <tr className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors">
-      <td className="px-2 py-1 font-bold text-slate-600 whitespace-nowrap text-xs">{formatDate(day.date)}</td>
-      <td className="px-2 py-1">
+      <td className="px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap text-xs">{formatDate(day.date)}</td>
+      <td className="px-2 py-1.5">
         <NumberInput
-          className="bg-white border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
+          className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
           value={day.salesBudget}
           onChange={(val) =>
             updateData((d) => ({
@@ -40,9 +40,9 @@ function DayRow({ day, currentStaff, offDays, targetRatio, updateData }: DayRowP
           }
         />
       </td>
-      <td className="px-2 py-1">
+      <td className="px-2 py-1.5">
         <NumberInput
-          className="bg-amber-50 border border-amber-100 rounded px-2 py-0.5 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
+          className="bg-amber-50 border border-amber-100 rounded px-2 py-1 text-xs text-slate-900 w-24 text-right font-mono outline-none focus:border-amber-500"
           value={day.salesActual}
           onChange={(val) =>
             updateData((d) => ({
@@ -55,10 +55,10 @@ function DayRow({ day, currentStaff, offDays, targetRatio, updateData }: DayRowP
           }
         />
       </td>
-      <td className={`px-2 py-1 text-right font-black text-xs ${ratio > 0 ? (over ? "text-rose-600" : "text-emerald-600") : "text-slate-300"}`}>
+      <td className={`px-2 py-1.5 text-right font-black text-xs ${ratio > 0 ? (over ? "text-rose-600" : "text-emerald-600") : "text-slate-300"}`}>
         {ratio > 0 ? ratio.toFixed(1) + "%" : "—"}
       </td>
-      <td className="px-2 py-1 text-center">
+      <td className="px-2 py-1.5 text-center">
         {ratio > 0 && (
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${over ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"}`}>
             {over ? "超過" : "良好"}
@@ -87,15 +87,17 @@ function KpiRow({ num, label, main, sub, accent }: {
   num?: string; label: string; main: string; sub?: string; accent?: "good" | "over";
 }) {
   return (
-    <div className="flex items-baseline justify-between py-[3px]">
-      <span className="text-[10px] text-slate-400 font-medium shrink-0">
-        {num && <span className="font-black text-slate-500 mr-0.5">{num}</span>}
+    <div className="flex items-center justify-between py-1 gap-2">
+      <span className="text-xs text-slate-400 font-medium shrink-0 whitespace-nowrap">
+        {num && <span className="font-black text-slate-500 mr-1">{num}</span>}
         {label}
       </span>
-      <span className={`text-xs font-black ml-2 ${accent === "good" ? "text-emerald-600" : accent === "over" ? "text-rose-600" : "text-slate-900"}`}>
-        {main}
-        {sub && <span className="text-[9px] font-medium text-slate-400 ml-1">{sub}</span>}
-      </span>
+      <div className="text-right min-w-0">
+        <span className={`text-base font-black tabular-nums leading-tight ${accent === "good" ? "text-emerald-600" : accent === "over" ? "text-rose-600" : "text-slate-900"}`}>
+          {main}
+        </span>
+        {sub && <div className="text-[10px] font-medium text-slate-400 leading-tight">{sub}</div>}
+      </div>
     </div>
   );
 }
@@ -197,33 +199,33 @@ export default function DashboardTab({
       <div className="grid grid-cols-2 gap-3 shrink-0">
 
         {/* 売上 */}
-        <div className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-sm" style={{ borderLeft: "3px solid #3b82f6" }}>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <TrendingUp size={12} className="text-blue-500" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">売上</span>
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm" style={{ borderLeft: "4px solid #3b82f6" }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <TrendingUp size={14} className="text-blue-500" />
+            <span className="text-xs font-black text-slate-500 uppercase tracking-widest">売上</span>
           </div>
           <KpiRow label="実績売上"  main={`¥${totalActual.toLocaleString()}`} />
           <KpiRow label="着地予測"  main={`¥${Math.round(forecast).toLocaleString()}`}  sub={forecastRate > 0 ? `予算比 ${forecastRate.toFixed(1)}%` : undefined} />
           <KpiRow label="予算"      main={`¥${totalBudget.toLocaleString()}`}            sub={achieveRate > 0  ? `達成率 ${achieveRate.toFixed(1)}%`   : undefined} accent={achieveRate >= 100 ? "good" : undefined} />
-          <div className="mt-2 h-0.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${Math.min(100, achieveRate)}%` }} />
           </div>
         </div>
 
         {/* 人件費 */}
         <div
-          className={`border rounded-xl px-3.5 py-2.5 shadow-sm ${forecastRatio > targetRatio ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200"}`}
-          style={{ borderLeft: `3px solid ${forecastRatio > targetRatio ? "#e11d48" : "#f59e0b"}` }}
+          className={`border rounded-xl px-4 py-3 shadow-sm ${forecastRatio > targetRatio ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200"}`}
+          style={{ borderLeft: `4px solid ${forecastRatio > targetRatio ? "#e11d48" : "#f59e0b"}` }}
         >
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Users size={12} className={forecastRatio > targetRatio ? "text-rose-500" : "text-amber-500"} />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">人件費</span>
-            <span className="ml-auto text-[9px] text-slate-400 font-medium">目標 {targetRatio}%</span>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Users size={14} className={forecastRatio > targetRatio ? "text-rose-500" : "text-amber-500"} />
+            <span className="text-xs font-black text-slate-500 uppercase tracking-widest">人件費</span>
+            <span className="ml-auto text-xs text-slate-400 font-bold">目標 {targetRatio}%</span>
           </div>
           <KpiRow num="①" label="実績累計" main={`¥${Math.round(actualCost).toLocaleString()}`}          sub={actualCostRate > 0 ? `実績比 ${actualCostRate.toFixed(1)}%`       : undefined} />
           <KpiRow num="②" label="着地予測" main={`¥${Math.round(forecastedLaborCost).toLocaleString()}`} sub={forecastRatio > 0  ? `予測売上比 ${forecastRatio.toFixed(1)}%`    : undefined} accent={forecastRatio > targetRatio ? "over" : undefined} />
           {budgetLaborCost > 0 && (
-            <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded my-0.5 ${laborDiff > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+            <div className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded my-1 ${laborDiff > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
               <span>{laborDiff > 0 ? "▲ 予算超過" : "▼ 予算良好"}</span>
               <span className="font-black">
                 ¥{Math.abs(Math.round(laborDiff)).toLocaleString()}
