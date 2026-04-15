@@ -381,7 +381,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
           <span className="text-[10px] font-black text-slate-400">{targetYear}年{targetMonth}月</span>
           {existingRequest && (
             <span className="text-[10px] text-blue-400 font-bold">
-              前回＝{new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出時 ▶ 青字
+              {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出分 ▶ 青字
             </span>
           )}
         </div>
@@ -446,7 +446,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                 {prevShift && existingRequest && (
                   <div className="ml-7 mt-1 flex items-center gap-1">
                     <span className="text-[10px] text-slate-400">
-                      前回＝{new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出時
+                      {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出
                     </span>
                     <span className="text-[10px] font-bold text-blue-500">{prevShift.inTime}</span>
                     <span className="text-[10px] text-slate-300">–</span>
