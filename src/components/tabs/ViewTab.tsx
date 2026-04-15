@@ -38,6 +38,7 @@ export default function ViewTab({
   offDays, targetRatio, isExporting, exportToPDF, printRef,
 }: ViewTabProps) {
   const week = weeks[weekIdx] ?? [];
+  const confirmedDates = new Set(data.confirmedDates ?? []);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -86,6 +87,8 @@ export default function ViewTab({
           const dayData = data.dailyDataRecord[date];
           if (!dayData) return null;
 
+          const isConfirmed = confirmedDates.has(date);
+
           const shifts = dayData.shifts
             .filter((sh) => sh.inTime && currentStaff.some((s) => s.id === sh.staffId))
             .sort((a, b) => {
@@ -104,23 +107,30 @@ export default function ViewTab({
           const over = ratio > targetRatio;
 
           return (
-            <div key={date} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div key={date} className={`bg-white border rounded-xl overflow-hidden shadow-sm transition-colors ${isConfirmed ? "border-emerald-300" : "border-slate-200"}`}>
               {/* Day header */}
-              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div className={`flex items-center justify-between px-3 py-1.5 border-b ${isConfirmed ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
                 <div className="flex items-center gap-2">
                   <span className="font-black text-xs text-slate-800">{formatDate(date)}</span>
                   <span className="text-[10px] text-slate-400 font-bold">{DOW[d.dow]}</span>
                   <span className="text-[10px] text-slate-400">{shifts.length}名</span>
+                  {isConfirmed && (
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      確定済み
+                    </span>
+                  )}
                 </div>
-                {ratio > 0 && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    over
-                      ? "bg-rose-50 text-rose-600 border-rose-100"
-                      : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                  }`}>
-                    人件費率 {ratio.toFixed(1)}% {over ? "超過" : "良好"}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {ratio > 0 && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      over
+                        ? "bg-rose-50 text-rose-600 border-rose-100"
+                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    }`}>
+                      人件費率 {ratio.toFixed(1)}% {over ? "超過" : "良好"}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {shifts.length === 0 ? (

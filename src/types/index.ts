@@ -17,6 +17,25 @@ export interface Staff {
   hourlyRate: number;
   monthlySalary: number;
   adjustments: Adjustment[];
+  pass?: string;
+}
+
+export interface RequestedShift {
+  date: string;
+  inTime: string;
+  outTime: string;
+}
+
+export interface ShiftRequest {
+  id: string;
+  staffId: string;
+  storeId: string;
+  year: number;
+  month: number;
+  shifts: RequestedShift[];
+  submittedAt: string;
+  status: "pending" | "reflected";
+  resubmit?: boolean;
 }
 
 export interface Store {
@@ -32,6 +51,8 @@ export interface Shift {
   outTime: string;
   breakMinutes: number;
   isHelp: boolean;
+  requestedInTime?: string;
+  requestedOutTime?: string;
 }
 
 export interface DailyData {
@@ -52,6 +73,7 @@ export interface AppData {
   version: number;
   sharedAt?: string;
   shareId?: string;
+  confirmedDates?: string[];
 }
 
 export interface DayInfo {

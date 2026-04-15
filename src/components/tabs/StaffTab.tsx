@@ -31,12 +31,13 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[200px_100px_150px_100px_100px_120px_60px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
+        <div className="hidden lg:grid grid-cols-[200px_100px_150px_100px_100px_100px_120px_60px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
           <div className="px-1">名前</div>
           <div className="px-1">種別</div>
           <div className="text-right">基本給与/時給</div>
           <div className="text-center">社会保険</div>
           <div className="text-center">ヘルプ要員</div>
+          <div className="text-center">PASS</div>
           <div className="text-center">加算設定</div>
           <div className="text-right">操作</div>
         </div>
@@ -46,7 +47,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
             const isExpanded = expandedStaffId === staff.id;
             return (
               <div key={staff.id} className={`transition-colors ${isExpanded ? "bg-blue-50/30" : "hover:bg-slate-50/50"}`}>
-                <div className="p-4 lg:px-6 lg:py-2 grid grid-cols-1 lg:grid-cols-[200px_100px_150px_100px_100px_120px_60px] gap-4 items-center">
+                <div className="p-4 lg:px-6 lg:py-2 grid grid-cols-1 lg:grid-cols-[200px_100px_150px_100px_100px_100px_120px_60px] gap-4 items-center">
                   {/* Name */}
                   <div className="flex items-center gap-3">
                     <input
@@ -88,6 +89,23 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
                   <div className="flex justify-between lg:justify-center items-center gap-2 lg:gap-0">
                     <span className="lg:hidden text-[10px] font-bold text-slate-400">ヘルプ要員</span>
                     <input type="checkbox" checked={staff.isHelp} onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, isHelp: e.target.checked } : s) }))} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
+                  </div>
+
+                  {/* PASS */}
+                  <div className="flex justify-between lg:justify-center items-center gap-2">
+                    <span className="lg:hidden text-[10px] font-bold text-slate-400">PASS</span>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-mono outline-none focus:border-blue-500 placeholder:text-slate-300"
+                      value={staff.pass ?? ""}
+                      placeholder="未設定"
+                      onChange={(e) => updateData((d) => ({
+                        ...d,
+                        allStaff: d.allStaff.map((s) =>
+                          s.id === staff.id ? { ...s, pass: e.target.value || undefined } : s
+                        ),
+                      }))}
+                    />
                   </div>
 
                   {/* Expand */}
