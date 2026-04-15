@@ -332,16 +332,16 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
   return (
     <div>
       {/* Month selector */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">対象月</span>
-        <div className="flex gap-1.5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs font-black text-slate-400 shrink-0">対象月</span>
+        <div className="flex gap-1.5 flex-wrap">
           {monthOptions.map((opt) => (
             <button
               key={`${opt.year}-${opt.month}`}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 targetYear === opt.year && targetMonth === opt.month
                   ? "bg-amber-500 text-white shadow"
-                  : "bg-white border border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-700"
+                  : "bg-white border border-slate-200 text-slate-500"
               }`}
               onClick={() => { setTargetYear(opt.year); setTargetMonth(opt.month); }}
             >
@@ -353,51 +353,35 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
 
       {/* 提出済みバナー */}
       {existingRequest && (
-        <div className={`rounded-xl mb-4 border overflow-hidden ${
-          existingRequest.resubmit ? "border-blue-200" : "border-amber-200"
+        <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl mb-4 border ${
+          existingRequest.resubmit ? "bg-blue-50 border-blue-200" : "bg-amber-50 border-amber-200"
         }`}>
-          {/* Header row */}
-          <div className={`flex items-center gap-3 px-4 py-2.5 ${
-            existingRequest.resubmit ? "bg-blue-50" : "bg-amber-50"
-          }`}>
-            <Clock size={13} className={existingRequest.resubmit ? "text-blue-500" : "text-amber-500"} />
-            <div className="flex-1">
-              <span className="text-xs font-black text-slate-800">
-                {existingRequest.resubmit ? "再申請済み" : "提出済み"}
-              </span>
-              <span className="ml-2 text-[10px] font-medium text-slate-500">
-                ({existingRequest.status === "reflected" ? "反映済み" : "管理者確認中"})
-              </span>
-              <span className="ml-2 text-[10px] text-slate-400">
-                {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP")} に提出
-              </span>
-            </div>
-            <span className={`text-[10px] font-black px-2 py-1 rounded-full border shrink-0 ${
-              existingRequest.resubmit
-                ? "bg-blue-100 text-blue-700 border-blue-200"
-                : "bg-amber-100 text-amber-700 border-amber-200"
-            }`}>
-              {existingRequest.resubmit ? "再申請" : "申請"}
+          <Clock size={13} className={existingRequest.resubmit ? "text-blue-500" : "text-amber-500"} />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-black text-slate-800">
+              {existingRequest.resubmit ? "再申請済み" : "提出済み"}
+            </span>
+            <span className="ml-1.5 text-[10px] text-slate-400">
+              {existingRequest.status === "reflected" ? "反映済み" : "確認中"} ·{" "}
+              {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP")}
             </span>
           </div>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
+            existingRequest.resubmit
+              ? "bg-blue-100 text-blue-700 border-blue-200"
+              : "bg-amber-100 text-amber-700 border-amber-200"
+          }`}>
+            {existingRequest.resubmit ? "再申請" : "申請"}
+          </span>
         </div>
       )}
 
       {/* Day inputs */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        {/* Column header */}
-        <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-          <span className="w-4 shrink-0" />
-          <span className="text-[10px] font-black text-slate-400 w-20 shrink-0">日付</span>
-          <span className="text-[10px] font-black text-slate-400 w-24 shrink-0">IN</span>
-          <span className="text-[10px] font-black text-slate-400 w-24 shrink-0">OUT</span>
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+        <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 rounded-t-xl flex items-center justify-between">
+          <span className="text-[10px] font-black text-slate-400">{targetYear}年{targetMonth}月</span>
           {existingRequest && (
-            <>
-              <span className="w-px self-stretch bg-slate-200 mx-2 shrink-0" />
-              <span className="text-[10px] font-black text-slate-300 w-20 shrink-0">提出日</span>
-              <span className="text-[10px] font-black text-slate-300 w-14 shrink-0">前回IN</span>
-              <span className="text-[10px] font-black text-slate-300">前回OUT</span>
-            </>
+            <span className="text-[10px] text-blue-400 font-bold">前回 ▶ 青字で表示</span>
           )}
         </div>
         <div className="divide-y divide-slate-100">
@@ -406,73 +390,65 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
             const val = inputs[d.date];
             const isChecked = !!val && !val.off;
             const prevShift = existingRequest?.shifts.find((s) => s.date === d.date) ?? null;
-            const submittedDate = existingRequest
-              ? new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })
-              : null;
             return (
               <div
                 key={d.date}
-                className={`flex items-center gap-2 px-4 py-2 transition-colors ${isChecked ? "bg-amber-50/30" : "hover:bg-slate-50/50"}`}
+                className={`px-3 py-2.5 transition-colors ${isChecked ? "bg-amber-50/40" : ""}`}
               >
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500/20 shrink-0"
-                  checked={isChecked}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setInputs((prev) => ({
-                        ...prev,
-                        [d.date]: { inTime: "", outTime: "", off: false },
-                      }));
-                    } else {
-                      setInputs((prev) => {
-                        const next = { ...prev };
-                        delete next[d.date];
-                        return next;
-                      });
-                    }
-                  }}
-                />
-                <span className={`text-xs font-black w-20 shrink-0 ${isWeekend ? "text-rose-600" : "text-slate-700"}`}>
-                  {targetMonth}/{d.day} ({DOW[d.dow]})
-                </span>
-                {isChecked ? (
-                  <>
-                    <input
-                      type="time"
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 outline-none focus:border-amber-400 w-24 shrink-0"
-                      value={val.inTime}
-                      onKeyDown={focusNextTime}
-                      onChange={(e) => setDay(d.date, "inTime", e.target.value)}
-                    />
-                    <input
-                      type="time"
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 outline-none focus:border-amber-400 w-24 shrink-0"
-                      value={val.outTime}
-                      onKeyDown={focusNextTime}
-                      onChange={(e) => setDay(d.date, "outTime", e.target.value)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <span className="text-[10px] font-bold text-slate-300 w-24 shrink-0">公休</span>
-                    <span className="w-24 shrink-0" />
-                  </>
-                )}
-                {/* 前回申請情報 */}
-                {existingRequest && (
-                  <>
-                    <span className="w-px self-stretch bg-slate-100 mx-2 shrink-0" />
-                    {prevShift ? (
-                      <>
-                        <span className="text-[10px] text-slate-400 w-20 shrink-0">{submittedDate}</span>
-                        <span className="text-[10px] font-bold text-blue-500 w-14 shrink-0">{prevShift.inTime}</span>
-                        <span className="text-[10px] font-bold text-blue-500">{prevShift.outTime}</span>
-                      </>
-                    ) : (
-                      <span className="text-[10px] text-slate-200 w-full">—</span>
-                    )}
-                  </>
+                {/* メイン行：チェック + 日付 + 時間入力 */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="w-5 h-5 rounded border-slate-300 shrink-0 accent-amber-500"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setInputs((prev) => ({
+                          ...prev,
+                          [d.date]: { inTime: "", outTime: "", off: false },
+                        }));
+                      } else {
+                        setInputs((prev) => {
+                          const next = { ...prev };
+                          delete next[d.date];
+                          return next;
+                        });
+                      }
+                    }}
+                  />
+                  <span className={`text-sm font-black w-20 shrink-0 ${isWeekend ? "text-rose-600" : "text-slate-800"}`}>
+                    {targetMonth}/{d.day}({DOW[d.dow]})
+                  </span>
+                  {isChecked ? (
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <input
+                        type="time"
+                        className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-amber-400"
+                        value={val.inTime}
+                        onKeyDown={focusNextTime}
+                        onChange={(e) => setDay(d.date, "inTime", e.target.value)}
+                      />
+                      <span className="text-slate-300 text-xs shrink-0">–</span>
+                      <input
+                        type="time"
+                        className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-amber-400"
+                        value={val.outTime}
+                        onKeyDown={focusNextTime}
+                        onChange={(e) => setDay(d.date, "outTime", e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-300">公休</span>
+                  )}
+                </div>
+                {/* 前回申請（サブ行） */}
+                {prevShift && (
+                  <div className="ml-7 mt-1 flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400">前回</span>
+                    <span className="text-[10px] font-bold text-blue-500">{prevShift.inTime}</span>
+                    <span className="text-[10px] text-slate-300">–</span>
+                    <span className="text-[10px] font-bold text-blue-500">{prevShift.outTime}</span>
+                  </div>
                 )}
               </div>
             );
@@ -481,8 +457,8 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
       </div>
 
       {/* Submit button */}
-      <div className="mt-4 flex items-center justify-between">
-        <span className="text-[10px] text-slate-400">
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <span className="text-[11px] text-slate-400">
           {Object.values(inputs).filter((v) => !v.off).length}日 選択中
         </span>
         <button
@@ -490,8 +466,8 @@ function SubmitTab({ staff, appData, onToast }: SubmitTabProps) {
             submitting
               ? "bg-slate-200 text-slate-400 cursor-not-allowed"
               : isResubmit
-              ? "bg-blue-500 hover:bg-blue-600 text-white"
-              : "bg-amber-500 hover:bg-amber-600 text-white"
+              ? "bg-blue-500 text-white"
+              : "bg-amber-500 text-white"
           }`}
           onClick={handleSubmit}
           disabled={submitting}
@@ -569,8 +545,9 @@ function DailyView({ appData, weeks }: DailyViewProps) {
               });
 
             return (
-              <div key={d.date} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+              <div key={d.date} className="bg-white border border-slate-200 rounded-xl shadow-sm">
+                {/* ヘッダー（固定） */}
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-200 rounded-t-xl">
                   <span className="font-black text-xs text-slate-800">{formatDate(d.date)}</span>
                   <span className="text-[10px] text-slate-400 font-bold">{DOW[d.dow]}</span>
                   <span className="text-[10px] text-slate-400">{shifts.length}名</span>
@@ -578,21 +555,18 @@ function DailyView({ appData, weeks }: DailyViewProps) {
                 </div>
 
                 {shifts.length === 0 ? (
-                  <div className="px-3 py-3 text-[11px] text-slate-300 text-center">シフトなし</div>
+                  <div className="px-3 py-3 text-[11px] text-slate-300 text-center rounded-b-xl">シフトなし</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <div style={{ minWidth: "560px" }} className="px-3 py-2">
-                      {/* 時間軸 */}
-                      <div className="flex mb-1" style={{ marginLeft: "6rem" }}>
+                  /* overflow-x-auto を外枠から切り離して独立させる */
+                  <div className="overflow-x-auto rounded-b-xl" style={{ WebkitOverflowScrolling: "touch" }}>
+                    <div className="px-3 py-2" style={{ minWidth: "580px" }}>
+                      {/* 時間軸ラベル */}
+                      <div className="flex mb-1" style={{ marginLeft: "80px" }}>
                         {GRID_SLOTS.map((slot, i) => (
-                          <div
-                            key={i}
-                            className="flex-1 border-l border-slate-100 pl-0.5"
-                            style={{ minWidth: 0 }}
-                          >
-                            <span className={`text-[9px] font-bold leading-none ${slot.isHour ? "text-slate-400" : "text-transparent"}`}>
-                              {slot.label || "·"}
-                            </span>
+                          <div key={i} className="flex-1 border-l border-slate-100 pl-0.5" style={{ minWidth: 0 }}>
+                            {slot.isHour && (
+                              <span className="text-[9px] font-bold text-slate-400 leading-none">{slot.label}</span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -607,22 +581,18 @@ function DailyView({ appData, weeks }: DailyViewProps) {
                           const isSeishain = s?.type === "社員";
                           const badgeCls = isHelp ? "bg-emerald-100 text-emerald-700 border-emerald-200" : isSeishain ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200";
                           const barCls = isHelp ? "bg-emerald-100 border-emerald-300 text-emerald-800" : isSeishain ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-amber-100 border-amber-300 text-amber-800";
-
                           return (
                             <div key={sh.staffId} className="flex items-center gap-2 h-6">
-                              <div className="shrink-0 flex items-center gap-1 overflow-hidden" style={{ width: "6rem" }}>
+                              <div className="shrink-0 flex items-center gap-1 overflow-hidden" style={{ width: "80px" }}>
                                 <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
-                                  {isHelp ? "HLP" : isSeishain ? "社員" : "AP"}
+                                  {isHelp ? "HLP" : isSeishain ? "社" : "AP"}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-700 truncate">{s?.name ?? "—"}</span>
                               </div>
                               <div className="flex-1 relative h-5">
                                 <div className="absolute inset-0 flex pointer-events-none">
                                   {GRID_SLOTS.map((slot, i) => (
-                                    <div
-                                      key={i}
-                                      className={`flex-1 border-l ${slot.isHour ? "border-slate-200" : "border-slate-100"}`}
-                                    />
+                                    <div key={i} className={`flex-1 border-l ${slot.isHour ? "border-slate-200" : "border-slate-100"}`} />
                                   ))}
                                 </div>
                                 <div
@@ -695,9 +665,9 @@ function WeeklyView({ appData, weeks }: WeeklyViewProps) {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+        <div className="overflow-x-auto rounded-xl" style={{ WebkitOverflowScrolling: "touch" }}>
+          <table className="text-left" style={{ minWidth: "420px", width: "100%" }}>
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap w-28">スタッフ</th>
