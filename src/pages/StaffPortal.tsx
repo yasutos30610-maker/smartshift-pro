@@ -94,8 +94,13 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
     if (!appData || !staffId) return;
     const staff = appData.allStaff.find((s) => s.id === staffId);
     if (!staff) return;
-    // PASS が設定されている場合のみ照合
-    if (staff.pass && staff.pass !== pass) {
+    // PASS 未設定のスタッフはログイン不可
+    if (!staff.pass) {
+      setPassError("PASSが設定されていません。管理者に設定を依頼してください");
+      return;
+    }
+    // PASS 照合
+    if (staff.pass !== pass) {
       setPassError("パスワードが違います");
       return;
     }
@@ -171,9 +176,6 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
                 <div>
                   <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">
                     パスワード
-                    {!appData?.allStaff.find((s) => s.id === staffId)?.pass && (
-                      <span className="ml-2 text-white/30 font-medium normal-case tracking-normal">（未設定の場合は空白でOK）</span>
-                    )}
                   </label>
                   <input
                     type="password"
@@ -191,12 +193,12 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
               {/* Login button */}
               <button
                 className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all ${
-                  staffId
+                  staffId && pass
                     ? "bg-amber-500 hover:bg-amber-400 text-white shadow-lg"
                     : "bg-white/10 text-white/30 cursor-not-allowed"
                 }`}
                 onClick={handleLogin}
-                disabled={!staffId}
+                disabled={!staffId || !pass}
               >
                 <LogIn size={16} /> ログイン
               </button>
