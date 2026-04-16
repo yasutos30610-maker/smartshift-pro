@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
-import { Plus, Trash2, Inbox, CheckCheck, ChevronDown, ChevronUp, CheckCircle, Circle } from "lucide-react";
+import { Plus, Trash2, CheckCircle, Circle } from "lucide-react";
 import NumberInput from "../ui/NumberInput";
-import type { AppData, Staff, DayInfo, UpdateDataFn, ShiftRequest } from "../../types";
+import type { AppData, Staff, DayInfo, UpdateDataFn } from "../../types";
 import { formatDate } from "../../utils/date";
 import { calcMinutes, calcDailyCost } from "../../utils/calc";
-import { fetchRequests, updateRequestStatus } from "../../lib/requests";
 
 // ─── Enter で次の入力欄へ ────────────────────────────────────────────────────
 function focusNext(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -17,147 +15,6 @@ function focusNext(e: React.KeyboardEvent<HTMLInputElement>) {
   if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
 }
 
-// ─── 提出シフトパネル ──────────────────────────────────────────────────────
-interface RequestsPanelProps {
-  data: AppData;
-  currentStaff: Staff[];
-  updateData: UpdateDataFn;
-}
-
-function RequestsPanel({ data, currentStaff, updateData }: RequestsPanelProps) {
-  const [requests, setRequests] = useState<ShiftRequest[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(true);
-  const [reflecting, setReflecting] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const list = await fetchRequests(data.selectedStoreId, data.year, data.month);
-      setRequests(list);
-      setLoading(false);
-    }
-    void load();
-  }, [data.selectedStoreId, data.year, data.month]);
-
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
-
-  const handleReflect = async (req: ShiftRequest) => {
-    setReflecting(req.id);
-    updateData((d) => {
-      let next = { ...d, dailyDataRecord: { ...d.dailyDataRecord } };
-      req.shifts.forEach((rs) => {
-        const existing = next.dailyDataRecord[rs.date];
-        if (!existing) return;
-        const alreadyIdx = existing.shifts.findIndex((s) => s.staffId === req.staffId);
-        const newShift = {
-          storeId: d.selectedStoreId,
-          staffId: req.staffId,
-          inTime: rs.inTime,
-          outTime: rs.outTime,
-          breakMinutes: 60,
-          isHelp: currentStaff.find((s) => s.id === req.staffId)?.isHelp ?? false,
-          requestedInTime: rs.inTime,
-          requestedOutTime: rs.outTime,
-        };
-        const shifts =
-          alreadyIdx >= 0
-            ? existing.shifts.map((s, i) => (i === alreadyIdx ? newShift : s))
-            : [...existing.shifts, newShift];
-        next = {
-          ...next,
-          dailyDataRecord: {
-            ...next.dailyDataRecord,
-            [rs.date]: { ...existing, shifts },
-          },
-        };
-      });
-      return next;
-    });
-    await updateRequestStatus(req.id, "reflected");
-    setRequests((prev) =>
-      prev.map((r) => (r.id === req.id ? { ...r, status: "reflected" } : r))
-    );
-    setReflecting(null);
-  };
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-4">
-      <button
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200 hover:bg-slate-100 transition-colors"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <div className="flex items-center gap-2">
-          <Inbox size={14} className="text-slate-500" />
-          <span className="text-xs font-black text-slate-700">提出シフト</span>
-          {pendingCount > 0 && (
-            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-500 text-white">
-              {pendingCount}件
-            </span>
-          )}
-        </div>
-        {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-      </button>
-
-      {open && (
-        <div>
-          {loading ? (
-            <div className="py-4 text-center">
-              <div className="w-5 h-5 border-2 border-slate-200 border-t-amber-500 rounded-full animate-spin mx-auto" />
-            </div>
-          ) : requests.length === 0 ? (
-            <div className="py-4 text-center text-xs font-bold text-slate-300">申請はありません</div>
-          ) : (
-            <div className="flex flex-wrap gap-2 px-4 py-3">
-              {requests.map((req) => {
-                const staff = currentStaff.find((s) => s.id === req.staffId);
-                const isReflected = req.status === "reflected";
-                const isResubmit = req.resubmit === true;
-                return (
-                  <div
-                    key={req.id}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                      isReflected
-                        ? "bg-slate-50 border-slate-200 opacity-60"
-                        : isResubmit
-                        ? "bg-blue-50 border-blue-200"
-                        : "bg-amber-50 border-amber-200"
-                    }`}
-                  >
-                    <span className="text-slate-800 font-black">{staff?.name ?? req.staffId}</span>
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
-                      isReflected
-                        ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                        : isResubmit
-                        ? "bg-blue-100 text-blue-700 border-blue-300"
-                        : "bg-amber-100 text-amber-700 border-amber-300"
-                    }`}>
-                      {isReflected ? "反映済み" : isResubmit ? "再申請" : "申請"}
-                    </span>
-                    {!isReflected && (
-                      <button
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black transition-all ${
-                          reflecting === req.id
-                            ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            : "bg-amber-500 hover:bg-amber-600 text-white"
-                        }`}
-                        onClick={() => handleReflect(req)}
-                        disabled={reflecting === req.id}
-                      >
-                        <CheckCheck size={10} />
-                        {reflecting === req.id ? "..." : "反映"}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface ShiftsTabProps {
   data: AppData;
@@ -196,8 +53,6 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <RequestsPanel data={data} currentStaff={currentStaff} updateData={updateData} />
-
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-base font-black text-slate-900 tracking-tight">
           {data.year}年{data.month}月 — シフト作成
