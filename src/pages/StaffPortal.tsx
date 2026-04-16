@@ -307,11 +307,11 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
         outTime: inputs[d.date].outTime || "18:00",
       }));
 
-    // 再提出の場合：既存シフト ＋ 新しい入力をマージ（同じ日付は上書き）
+    // 再提出の場合：既存シフト ＋ 新しい入力をマージ（同じ日付は上書き、公休は除外）
     const mergedShifts: RequestedShift[] = isResubmit && existingRequest
       ? [
           ...existingRequest.shifts.filter(
-            (s) => !newShifts.some((ns) => ns.date === s.date)
+            (s) => !newShifts.some((ns) => ns.date === s.date) && !inputs[s.date]?.off
           ),
           ...newShifts,
         ].sort((a, b) => a.date.localeCompare(b.date))
@@ -476,7 +476,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                       if (e.target.checked) {
                         setInputs((prev) => ({
                           ...prev,
-                          [d.date]: { inTime: "", outTime: "", off: false },
+                          [d.date]: { inTime: "12:00", outTime: "12:00", off: false },
                         }));
                       } else {
                         setInputs((prev) => {
@@ -496,8 +496,21 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                       <span className="text-slate-300 text-xs shrink-0">–</span>
                       <TimeSelect value={val.outTime} onChange={(v) => setDay(d.date, "outTime", v)} />
                     </div>
+                  ) : val?.off ? (
+                    <button
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs font-black transition-colors"
+                      onClick={() => setInputs((prev) => { const next = { ...prev }; delete next[d.date]; return next; })}
+                    >
+                      公休
+                      <span className="text-rose-400 text-[10px] ml-0.5">×</span>
+                    </button>
                   ) : (
-                    <span className="text-xs font-bold text-slate-300">公休</span>
+                    <button
+                      className="text-xs font-bold text-slate-300 hover:text-rose-500 hover:bg-rose-50 px-2 py-0.5 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                      onClick={() => setDay(d.date, "off", true)}
+                    >
+                      公休
+                    </button>
                   )}
                 </div>
                 {/* 前回申請（サブ行） */}
