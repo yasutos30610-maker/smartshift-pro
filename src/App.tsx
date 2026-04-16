@@ -18,6 +18,7 @@ import ViewTab from "./components/tabs/ViewTab";
 import PrintTab from "./components/tabs/PrintTab";
 import StatsTab from "./components/tabs/StatsTab";
 import StaffTab from "./components/tabs/StaffTab";
+import ImportTab from "./components/tabs/ImportTab";
 import SettingsTab from "./components/tabs/SettingsTab";
 import { getDaysArray, getWeeks } from "./utils/date";
 import { calcDailyCost } from "./utils/calc";
@@ -121,6 +122,14 @@ export default function App() {
             isExporting={isExporting}
             exportDashboardToPDF={exportDashboardToPDF}
             dashboardRef={dashboardRef}
+          />
+        )}
+
+        {activeTab === "import" && (
+          <ImportTab
+            data={data}
+            currentStaff={currentStaff}
+            updateData={updateData}
           />
         )}
 

@@ -7,11 +7,13 @@ import {
   Share2,
   CalendarDays,
   CalendarRange,
+  Inbox,
 } from "lucide-react";
 import type { AppData, UpdateDataFn } from "../../types";
 
 export const TABS = [
   { id: "dashboard", label: "ダッシュボード",   icon: LayoutDashboard },
+  { id: "import",    label: "シフト取込",       icon: Inbox },
   { id: "shifts",    label: "シフト作成",       icon: ClipboardList },
   { id: "view",      label: "シフト(Daily)",    icon: CalendarDays },
   { id: "print",     label: "シフト(Weekly)",   icon: CalendarRange },
