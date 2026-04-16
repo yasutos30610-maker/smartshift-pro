@@ -64,7 +64,7 @@ export async function submitRequest(
   ];
   saveLocal(req.storeId, req.year, req.month, updated);
 
-  // Supabase にも保存（テーブルがない場合は無視）
+  // Supabase にも保存
   try {
     const { error } = await supabase.from("shift_requests").insert({
       id: newReq.id,
@@ -75,9 +75,10 @@ export async function submitRequest(
       shifts: req.shifts,
       submitted_at: req.submittedAt,
       status: req.status,
+      resubmit: req.resubmit ?? false,
     });
     if (error) {
-      console.warn("Supabase保存スキップ（テーブル未作成の可能性）:", error.message);
+      console.warn("Supabase shift_requests 保存エラー:", error.message, error.code);
     }
   } catch (e) {
     console.warn("Supabase接続エラー（localStorage に保存済み）:", e);
@@ -155,5 +156,6 @@ function rowToRequest(row: Record<string, unknown>): ShiftRequest {
     shifts: (row.shifts as RequestedShift[]) ?? [],
     submittedAt: row.submitted_at as string,
     status: row.status as "pending" | "reflected",
+    resubmit: (row.resubmit as boolean) ?? false,
   };
 }
