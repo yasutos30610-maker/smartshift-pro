@@ -298,7 +298,8 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const isResubmit = existingRequest != null;
 
   const handleSubmit = async () => {
-    const shifts: RequestedShift[] = days
+    // 今回のフォームで入力した日付
+    const newShifts: RequestedShift[] = days
       .filter((d) => inputs[d.date] && !inputs[d.date].off && inputs[d.date].inTime)
       .map((d) => ({
         date: d.date,
@@ -306,7 +307,17 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
         outTime: inputs[d.date].outTime || "18:00",
       }));
 
-    if (shifts.length === 0) {
+    // 再提出の場合：既存シフト ＋ 新しい入力をマージ（同じ日付は上書き）
+    const mergedShifts: RequestedShift[] = isResubmit && existingRequest
+      ? [
+          ...existingRequest.shifts.filter(
+            (s) => !newShifts.some((ns) => ns.date === s.date)
+          ),
+          ...newShifts,
+        ].sort((a, b) => a.date.localeCompare(b.date))
+      : newShifts;
+
+    if (mergedShifts.length === 0) {
       onToast("希望シフトを1日以上入力してください", "error");
       return;
     }
@@ -317,7 +328,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
       storeId: staff.storeId,
       year: targetYear,
       month: targetMonth,
-      shifts,
+      shifts: mergedShifts,
       submittedAt: new Date().toISOString(),
       status: "pending",
       resubmit: isResubmit,
@@ -326,7 +337,13 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
 
     if (ok) {
       setSubmitted(true);
-      onToast(isResubmit ? "再申請しました！" : "シフト希望を送信しました！");
+      const addedCount = newShifts.length;
+      const totalCount = mergedShifts.length;
+      onToast(
+        isResubmit
+          ? `再申請しました！（合計${totalCount}日 / 今回${addedCount}日追加）`
+          : `シフト希望を送信しました！（${totalCount}日）`
+      );
     } else {
       onToast("送信に失敗しました。もう一度お試しください", "error");
     }
@@ -349,6 +366,11 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
           {targetYear}年{targetMonth}月のシフト希望を{isResubmit ? "再申請" : "送信"}しました。<br />
           管理者が確認後に反映されます。
         </p>
+        {isResubmit && existingRequest && (
+          <p className="text-xs text-blue-600 font-bold bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 text-center">
+            前回分を引き継いで上書き提出しました
+          </p>
+        )}
         <button
           className="mt-2 px-6 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors"
           onClick={() => setSubmitted(false)}
@@ -383,26 +405,24 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
 
       {/* 提出済みバナー */}
       {existingRequest && (
-        <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl mb-4 border ${
+        <div className={`px-3 py-2.5 rounded-xl mb-4 border ${
           existingRequest.resubmit ? "bg-blue-50 border-blue-200" : "bg-amber-50 border-amber-200"
         }`}>
-          <Clock size={13} className={existingRequest.resubmit ? "text-blue-500" : "text-amber-500"} />
-          <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Clock size={13} className={existingRequest.resubmit ? "text-blue-500" : "text-amber-500"} />
             <span className="text-xs font-black text-slate-800">
               {existingRequest.resubmit ? "再申請済み" : "提出済み"}
             </span>
-            <span className="ml-1.5 text-[10px] text-slate-400">
+            <span className="text-[10px] text-slate-400">
               {existingRequest.status === "reflected" ? "反映済み" : "確認中"} ·{" "}
-              {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP")}
+              {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP")} ·{" "}
+              {existingRequest.shifts.length}日
             </span>
           </div>
-          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
-            existingRequest.resubmit
-              ? "bg-blue-100 text-blue-700 border-blue-200"
-              : "bg-amber-100 text-amber-700 border-amber-200"
-          }`}>
-            {existingRequest.resubmit ? "再申請" : "申請"}
-          </span>
+          <p className="text-[11px] text-slate-500 mt-1 ml-5">
+            新しい日付を追加、または変更したい日を入力して再申請すると<br />
+            <span className="font-bold text-slate-700">既存の{existingRequest.shifts.length}日に上書き追加</span>されます
+          </p>
         </div>
       )}
 
