@@ -25,6 +25,39 @@ const GRID_SLOTS = Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) =>
   return { label, isHour };
 });
 
+// ─── 15分単位の時刻選択肢 ────────────────────────────────────────────────────
+const TIME_OPTIONS: { value: string; label: string }[] = [];
+for (let h = 5; h < 24; h++) {
+  for (const m of [0, 15, 30, 45]) {
+    TIME_OPTIONS.push({
+      value: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+      label: `${h}:${String(m).padStart(2, "0")}`,
+    });
+  }
+}
+[
+  { value: "00:00", label: "24:00" }, { value: "00:15", label: "24:15" },
+  { value: "00:30", label: "24:30" }, { value: "00:45", label: "24:45" },
+  { value: "01:00", label: "25:00" }, { value: "01:15", label: "25:15" },
+  { value: "01:30", label: "25:30" }, { value: "01:45", label: "25:45" },
+  { value: "02:00", label: "26:00" },
+].forEach((o) => TIME_OPTIONS.push(o));
+
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <select
+      className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-amber-400"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">--</option>
+      {TIME_OPTIONS.map((opt) => (
+        <option key={`${opt.value}-${opt.label}`} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  );
+}
+
 // ─── ログイン画面 ──────────────────────────────────────────────────────────
 interface LoginScreenProps {
   onLogin: (staff: Staff, data: AppData) => void;
@@ -219,14 +252,6 @@ interface SubmitTabProps {
   onToast: (msg: string, type?: "success" | "error") => void;
 }
 
-function focusNextTime(e: React.KeyboardEvent<HTMLInputElement>) {
-  if (e.key !== "Enter") return;
-  e.preventDefault();
-  const all = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="time"]'));
-  const idx = all.indexOf(e.currentTarget);
-  if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
-}
-
 function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const now = new Date();
   const curYear = now.getFullYear();
@@ -236,6 +261,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
 
   const [targetYear, setTargetYear] = useState(defaultYear);
   const [targetMonth, setTargetMonth] = useState(defaultMonth);
+  const [weekIdx, setWeekIdx] = useState(0);
   // 全日付を空白(未チェック)で初期化
   const [inputs, setInputs] = useState<Record<string, { inTime: string; outTime: string; off: boolean }>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -243,6 +269,11 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const [existingRequest, setExistingRequest] = useState<ShiftRequest | null>(null);
 
   const days = getDaysArray(targetYear, targetMonth);
+  const weeks = getWeeks(targetYear, targetMonth);
+  const weekDays = weeks[weekIdx] ?? [];
+
+  // 月変更時に週タブをリセット
+  useEffect(() => { setWeekIdx(0); }, [targetYear, targetMonth]);
 
   // 既存申請の有無だけ確認（フォームには反映しない）
   useEffect(() => {
@@ -375,10 +406,29 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
         </div>
       )}
 
+      {/* 週タブ */}
+      <div className="flex gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mb-3">
+        {weeks.map((wk, i) => (
+          <button
+            key={i}
+            className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
+              weekIdx === i
+                ? "bg-white text-amber-700 shadow-sm border border-amber-100"
+                : "text-slate-400 hover:text-slate-600"
+            }`}
+            onClick={() => setWeekIdx(i)}
+          >
+            {wk[0] ? `${targetMonth}/${wk[0].day}〜` : `W${i + 1}`}
+          </button>
+        ))}
+      </div>
+
       {/* Day inputs */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
         <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 rounded-t-xl flex items-center justify-between">
-          <span className="text-[10px] font-black text-slate-400">{targetYear}年{targetMonth}月</span>
+          <span className="text-[10px] font-black text-slate-400">
+            {targetYear}年{targetMonth}月 W{weekIdx + 1}（{weekDays.length}日間）
+          </span>
           {existingRequest && (
             <span className="text-[10px] text-blue-400 font-bold">
               {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出分 ▶ 青字
@@ -386,7 +436,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
           )}
         </div>
         <div className="divide-y divide-slate-100">
-          {days.map((d) => {
+          {weekDays.map((d) => {
             const isWeekend = d.dow === 0 || d.dow === 6;
             const val = inputs[d.date];
             const isChecked = !!val && !val.off;
@@ -422,21 +472,9 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                   </span>
                   {isChecked ? (
                     <div className="flex items-center gap-1 flex-1 min-w-0">
-                      <input
-                        type="time"
-                        className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-amber-400"
-                        value={val.inTime}
-                        onKeyDown={focusNextTime}
-                        onChange={(e) => setDay(d.date, "inTime", e.target.value)}
-                      />
+                      <TimeSelect value={val.inTime} onChange={(v) => setDay(d.date, "inTime", v)} />
                       <span className="text-slate-300 text-xs shrink-0">–</span>
-                      <input
-                        type="time"
-                        className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-amber-400"
-                        value={val.outTime}
-                        onKeyDown={focusNextTime}
-                        onChange={(e) => setDay(d.date, "outTime", e.target.value)}
-                      />
+                      <TimeSelect value={val.outTime} onChange={(v) => setDay(d.date, "outTime", v)} />
                     </div>
                   ) : (
                     <span className="text-xs font-bold text-slate-300">公休</span>
@@ -800,8 +838,8 @@ export default function StaffPortal() {
         </button>
       </header>
 
-      {/* Tab bar */}
-      <div className="bg-white border-b border-slate-200 px-4">
+      {/* Tab bar — スティッキー */}
+      <div className="bg-white border-b border-slate-200 px-4 sticky z-10" style={{ top: "calc(3.5rem + env(safe-area-inset-top, 0px))" }}>
         <div className="flex gap-1">
           {TABS.map((tab) => (
             <button
