@@ -27,3 +27,18 @@ export interface SharedSnapshotRow {
   created_at: string;
   expires_at: string;
 }
+
+export interface UserRow {
+  id: string;
+  username: string;
+  password_hash: string;
+  role: "admin" | "area_manager" | "store_manager";
+  display_name: string;
+  created_at: string;
+}
+
+export interface UserStoreAssignmentRow {
+  id: string;
+  user_id: string;
+  store_id: string;
+}

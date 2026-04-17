@@ -8,19 +8,28 @@ import {
   CalendarDays,
   CalendarRange,
   Inbox,
+  LogOut,
 } from "lucide-react";
 import type { AppData, UpdateDataFn } from "../../types";
+import { useAuth } from "../../contexts/AuthContext";
+import type { UserRole } from "../../types/auth";
 
 export const TABS = [
-  { id: "dashboard", label: "ダッシュボード",   icon: LayoutDashboard },
-  { id: "import",    label: "シフト取込",       icon: Inbox },
-  { id: "shifts",    label: "シフト作成",       icon: ClipboardList },
-  { id: "view",      label: "シフト(Daily)",    icon: CalendarDays },
-  { id: "print",     label: "シフト(Weekly)",   icon: CalendarRange },
-  { id: "stats",     label: "労働集計",         icon: BarChart3 },
-  { id: "staff",     label: "スタッフ",         icon: Users },
-  { id: "settings",  label: "設定",             icon: Settings },
+  { id: "dashboard", label: "ダッシュボード", icon: LayoutDashboard, roles: ["admin", "area_manager", "store_manager"] },
+  { id: "import",    label: "シフト取込",     icon: Inbox,           roles: ["admin", "area_manager", "store_manager"] },
+  { id: "shifts",    label: "シフト作成",     icon: ClipboardList,   roles: ["admin", "area_manager", "store_manager"] },
+  { id: "view",      label: "シフト(Daily)",  icon: CalendarDays,    roles: ["admin", "area_manager", "store_manager"] },
+  { id: "print",     label: "シフト(Weekly)", icon: CalendarRange,   roles: ["admin", "area_manager", "store_manager"] },
+  { id: "stats",     label: "労働集計",       icon: BarChart3,       roles: ["admin", "area_manager", "store_manager"] },
+  { id: "staff",     label: "スタッフ",       icon: Users,           roles: ["admin", "area_manager", "store_manager"] },
+  { id: "settings",  label: "設定",           icon: Settings,        roles: ["admin", "area_manager", "store_manager"] },
 ] as const;
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  admin: "Admin",
+  area_manager: "エリアMgr",
+  store_manager: "店舗Mgr",
+};
 
 interface SidebarProps {
   activeTab: string;
@@ -32,6 +41,16 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, onTabChange, data, updateData, saving, onShare }: SidebarProps) {
+  const { user, logout } = useAuth();
+  const role = user?.role ?? "store_manager";
+
+  // SMは担当店舗のみ、AMは担当店舗のみ、adminは全店舗
+  const visibleStores = role === "admin"
+    ? data.stores
+    : data.stores.filter((s) => user?.assignedStoreIds.includes(s.id));
+
+  const visibleTabs = TABS.filter((t) => (t.roles as readonly string[]).includes(role));
+
   return (
     <nav className="
       shrink-0 bg-white border-r border-slate-200
@@ -51,7 +70,7 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
 
       {/* ナビゲーション */}
       <div className="flex-1 py-2 px-2 space-y-0.5">
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -74,19 +93,25 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
         })}
       </div>
 
-      {/* 店舗セレクタ */}
+      {/* 店舗セレクタ（admin/AMのみ複数選択可能、SMは表示のみ） */}
       <div className="px-2 py-2 border-t border-slate-100">
         <div className="hidden lg:block text-[9px] text-slate-400 font-bold tracking-widest mb-1 px-1 uppercase">店舗</div>
-        <select
-          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-amber-500 transition-colors"
-          value={data.selectedStoreId}
-          onChange={(e) => updateData((d) => ({ ...d, selectedStoreId: e.target.value }))}
-          title="表示店舗"
-        >
-          {data.stores.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+        {role === "store_manager" ? (
+          <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 truncate">
+            {visibleStores[0]?.name ?? "—"}
+          </div>
+        ) : (
+          <select
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-amber-500 transition-colors"
+            value={data.selectedStoreId}
+            onChange={(e) => updateData((d) => ({ ...d, selectedStoreId: e.target.value }))}
+            title="表示店舗"
+          >
+            {visibleStores.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* 月セレクタ */}
@@ -130,6 +155,24 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
             {saving ? "保存中..." : "保存済み"}
           </span>
         </div>
+      </div>
+
+      {/* ユーザー情報 + ログアウト */}
+      <div className="px-2 py-2 border-t border-slate-100">
+        <div className="hidden lg:flex items-center gap-2 px-1 mb-1.5">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-bold text-slate-700 truncate">{user?.displayName ?? user?.username}</div>
+            <div className="text-[9px] text-amber-600 font-bold">{ROLE_LABEL[role]}</div>
+          </div>
+        </div>
+        <button
+          onClick={logout}
+          title="ログアウト"
+          className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all text-[11px] font-bold"
+        >
+          <LogOut size={13} />
+          <span className="hidden lg:inline">ログアウト</span>
+        </button>
       </div>
     </nav>
   );

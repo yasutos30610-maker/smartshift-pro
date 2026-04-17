@@ -8,6 +8,7 @@ import { useToast } from "./hooks/useToast";
 import { useAppData } from "./hooks/useAppData";
 import { useAlerts } from "./hooks/useAlerts";
 import { usePdfExport } from "./hooks/usePdfExport";
+import { useAuth } from "./contexts/AuthContext";
 import Sidebar from "./components/layout/Sidebar";
 import AlertBar from "./components/layout/AlertBar";
 import ShareModal from "./components/layout/ShareModal";
@@ -20,10 +21,12 @@ import StatsTab from "./components/tabs/StatsTab";
 import StaffTab from "./components/tabs/StaffTab";
 import ImportTab from "./components/tabs/ImportTab";
 import SettingsTab from "./components/tabs/SettingsTab";
+import LoginPage from "./pages/LoginPage";
 import { getDaysArray, getWeeks } from "./utils/date";
 import { calcDailyCost } from "./utils/calc";
 
 export default function App() {
+  const { user, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [weekIdx, setWeekIdx] = useState(0);
 
@@ -78,6 +81,16 @@ export default function App() {
     weekIdx,
     showToast,
   });
+
+  // ── 認証ガード ───────────────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-white text-slate-400 font-sans">
+        <div className="w-8 h-8 border-4 border-slate-100 border-t-amber-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <LoginPage />;
 
   // ── ローディング ─────────────────────────────────────────────────────────
   if (!data) {
