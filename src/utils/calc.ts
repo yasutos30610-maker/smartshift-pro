@@ -55,7 +55,8 @@ export function calcDailyCost(
     const ot = Math.max(0, net - 480);
     const otExtra = (ot / 60) * rate * 0.25;
     const midExtra = (midnight / 60) * rate * 0.25;
-    return base + otExtra + midExtra + dailyAdd;
+    const transport = staff.dailyTransport ?? 0;
+    return base + otExtra + midExtra + dailyAdd + transport;
   } else {
     if (!dateStr) return 0;
     const [y, mo] = dateStr.split("-").map(Number);
@@ -64,6 +65,7 @@ export function calcDailyCost(
     const dailyBase = staff.monthlySalary / workingDays;
     const hrRate = staff.monthlySalary / 173;
     const midExtra = (midnight / 60) * hrRate * 0.25;
-    return dailyBase + midExtra + dailyAdd;
+    const transportDaily = (staff.monthlyTransport ?? 0) / workingDays;
+    return dailyBase + midExtra + dailyAdd + transportDaily;
   }
 }

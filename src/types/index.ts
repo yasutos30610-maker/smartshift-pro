@@ -18,6 +18,8 @@ export interface Staff {
   monthlySalary: number;
   adjustments: Adjustment[];
   pass?: string;
+  dailyTransport?: number;    // AP用: 1日往復交通費
+  monthlyTransport?: number;  // 社員用: 月額定期代
 }
 
 export interface RequestedShift {

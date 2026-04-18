@@ -31,13 +31,14 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[200px_100px_150px_100px_100px_100px_120px_60px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
+        <div className="hidden lg:grid grid-cols-[200px_100px_150px_100px_100px_100px_110px_120px_60px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
           <div className="px-1">名前</div>
           <div className="px-1">種別</div>
           <div className="text-right">基本給与/時給</div>
           <div className="text-center">社会保険</div>
           <div className="text-center">ヘルプ要員</div>
           <div className="text-center">PASS</div>
+          <div className="text-right">交通費</div>
           <div className="text-center">加算設定</div>
           <div className="text-right">操作</div>
         </div>
@@ -47,7 +48,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
             const isExpanded = expandedStaffId === staff.id;
             return (
               <div key={staff.id} className={`transition-colors ${isExpanded ? "bg-blue-50/30" : "hover:bg-slate-50/50"}`}>
-                <div className="p-4 lg:px-6 lg:py-2 grid grid-cols-1 lg:grid-cols-[200px_100px_150px_100px_100px_100px_120px_60px] gap-4 items-center">
+                <div className="p-4 lg:px-6 lg:py-2 grid grid-cols-1 lg:grid-cols-[200px_100px_150px_100px_100px_100px_110px_120px_60px] gap-4 items-center">
                   {/* Name */}
                   <div className="flex items-center gap-3">
                     <input
@@ -106,6 +107,28 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
                         ),
                       }))}
                     />
+                  </div>
+
+                  {/* 交通費 */}
+                  <div className="flex justify-between lg:justify-end items-center gap-2">
+                    <span className="lg:hidden text-[10px] font-bold text-slate-400">
+                      {staff.type === "AP" ? "1日往復交通費" : "月額定期代"}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <NumberInput
+                        className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-mono text-right outline-none focus:border-blue-500"
+                        value={staff.type === "AP" ? (staff.dailyTransport ?? 0) : (staff.monthlyTransport ?? 0)}
+                        onChange={(val) => updateData((d) => ({
+                          ...d,
+                          allStaff: d.allStaff.map((s) =>
+                            s.id === staff.id
+                              ? { ...s, [staff.type === "AP" ? "dailyTransport" : "monthlyTransport"]: val }
+                              : s
+                          ),
+                        }))}
+                      />
+                      <span className="text-[10px] font-bold text-slate-400">円</span>
+                    </div>
                   </div>
 
                   {/* Expand */}
