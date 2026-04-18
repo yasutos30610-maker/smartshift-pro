@@ -123,7 +123,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
       </div>
 
       {/* サマリーカード */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="bg-white border border-slate-200 rounded-xl px-3 py-3 shadow-sm text-center">
           <div className="text-2xl font-black text-slate-800">{currentStaff.length}</div>
           <div className="text-[10px] text-slate-400 font-bold mt-0.5">スタッフ</div>

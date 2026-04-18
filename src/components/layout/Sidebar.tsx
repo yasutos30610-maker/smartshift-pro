@@ -44,7 +44,6 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
   const { user, logout } = useAuth();
   const role = user?.role ?? "store_manager";
 
-  // SMは担当店舗のみ、AMは担当店舗のみ、adminは全店舗
   const visibleStores = role === "admin"
     ? data.stores
     : data.stores.filter((s) => user?.assignedStoreIds.includes(s.id));
@@ -55,14 +54,14 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
     <nav className="
       shrink-0 bg-white border-r border-slate-200
       flex flex-col sticky top-0 h-screen overflow-y-auto
-      w-14 lg:w-52
+      w-14 md:w-48 lg:w-52
     ">
       {/* ロゴ */}
-      <div className="flex items-center gap-2.5 px-3 lg:px-4 py-4 border-b border-slate-200">
+      <div className="flex items-center gap-2.5 px-3 md:px-4 py-4 border-b border-slate-200">
         <div className="w-8 h-8 shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center font-black text-white text-sm shadow-md">
           S
         </div>
-        <div className="hidden lg:block">
+        <div className="hidden md:block">
           <div className="text-xs font-extrabold text-slate-900 tracking-tight leading-tight">SmartShift</div>
           <div className="text-[10px] text-amber-600 font-bold tracking-[0.15em]">PRO</div>
         </div>
@@ -85,7 +84,7 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
               onClick={() => onTabChange(tab.id)}
             >
               <tab.icon size={18} className="shrink-0" />
-              <span className={`hidden lg:block text-xs font-semibold ${active ? "text-amber-700" : ""}`}>
+              <span className={`hidden md:block text-xs font-semibold truncate ${active ? "text-amber-700" : ""}`}>
                 {tab.label}
               </span>
             </button>
@@ -93,11 +92,11 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
         })}
       </div>
 
-      {/* 店舗セレクタ（admin/AMのみ複数選択可能、SMは表示のみ） */}
+      {/* 店舗セレクタ */}
       <div className="px-2 py-2 border-t border-slate-100">
-        <div className="hidden lg:block text-[9px] text-slate-400 font-bold tracking-widest mb-1 px-1 uppercase">店舗</div>
+        <div className="hidden md:block text-[9px] text-slate-400 font-bold tracking-widest mb-1 px-1 uppercase">店舗</div>
         {role === "store_manager" ? (
-          <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 truncate">
+          <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 truncate hidden md:block">
             {visibleStores[0]?.name ?? "—"}
           </div>
         ) : (
@@ -116,7 +115,7 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
 
       {/* 月セレクタ */}
       <div className="px-2 py-2 border-t border-slate-100">
-        <div className="hidden lg:block text-[9px] text-slate-400 font-bold tracking-widest mb-1 px-1 uppercase">対象月</div>
+        <div className="hidden md:block text-[9px] text-slate-400 font-bold tracking-widest mb-1 px-1 uppercase">対象月</div>
         <div className="flex gap-1">
           <select
             className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-slate-700 outline-none focus:border-amber-500"
@@ -147,11 +146,11 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
           title="URLで共有"
         >
           <Share2 size={13} />
-          <span className="hidden lg:inline">共有する</span>
+          <span className="hidden md:inline">共有する</span>
         </button>
-        <div className="flex items-center justify-center lg:justify-start gap-1.5 mt-2 px-1">
+        <div className="flex items-center justify-center md:justify-start gap-1.5 mt-2 px-1">
           <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${saving ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
-          <span className="hidden lg:block text-[10px] text-slate-400 font-bold">
+          <span className="hidden md:block text-[10px] text-slate-400 font-bold">
             {saving ? "保存中..." : "保存済み"}
           </span>
         </div>
@@ -159,7 +158,7 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
 
       {/* ユーザー情報 + ログアウト */}
       <div className="px-2 py-2 border-t border-slate-100">
-        <div className="hidden lg:flex items-center gap-2 px-1 mb-1.5">
+        <div className="hidden md:flex items-center gap-2 px-1 mb-1.5">
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-bold text-slate-700 truncate">{user?.displayName ?? user?.username}</div>
             <div className="text-[9px] text-amber-600 font-bold">{ROLE_LABEL[role]}</div>
@@ -171,7 +170,7 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
           className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all text-[11px] font-bold"
         >
           <LogOut size={13} />
-          <span className="hidden lg:inline">ログアウト</span>
+          <span className="hidden md:inline">ログアウト</span>
         </button>
       </div>
     </nav>

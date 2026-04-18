@@ -31,7 +31,8 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[200px_100px_150px_100px_100px_100px_110px_120px_60px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
+        <div className="overflow-x-auto">
+        <div className="hidden md:grid grid-cols-[180px_90px_140px_90px_90px_90px_100px_110px_50px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
           <div className="px-1">名前</div>
           <div className="px-1">種別</div>
           <div className="text-right">基本給与/時給</div>
@@ -48,7 +49,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
             const isExpanded = expandedStaffId === staff.id;
             return (
               <div key={staff.id} className={`transition-colors ${isExpanded ? "bg-blue-50/30" : "hover:bg-slate-50/50"}`}>
-                <div className="p-4 lg:px-6 lg:py-2 grid grid-cols-1 lg:grid-cols-[200px_100px_150px_100px_100px_100px_110px_120px_60px] gap-4 items-center">
+                <div className="p-4 md:px-4 md:py-2 grid grid-cols-1 md:grid-cols-[180px_90px_140px_90px_90px_90px_100px_110px_50px] gap-4 items-center">
                   {/* Name */}
                   <div className="flex items-center gap-3">
                     <input
@@ -56,14 +57,14 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
                       value={staff.name}
                       onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, name: e.target.value } : s) }))}
                     />
-                    <select className="lg:hidden bg-slate-100 border-none rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 outline-none" value={staff.type} onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, type: e.target.value as "社員" | "AP" } : s) }))}>
+                    <select className="md:hidden bg-slate-100 border-none rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 outline-none" value={staff.type} onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, type: e.target.value as "社員" | "AP" } : s) }))}>
                       <option value="社員">社員</option>
                       <option value="AP">AP</option>
                     </select>
                   </div>
 
                   {/* Type (Desktop) */}
-                  <div className="hidden lg:block">
+                  <div className="hidden md:block">
                     <select className="w-full bg-transparent border-none text-xs font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-900 px-1" value={staff.type} onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, type: e.target.value as "社員" | "AP" } : s) }))}>
                       <option value="社員">社員</option>
                       <option value="AP">AP</option>
@@ -82,19 +83,19 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
 
                   {/* Social Insurance */}
                   <div className="flex justify-between lg:justify-center items-center gap-2 lg:gap-0">
-                    <span className="lg:hidden text-[10px] font-bold text-slate-400">社会保険</span>
+                    <span className="md:hidden text-[10px] font-bold text-slate-400">社会保険</span>
                     <input type="checkbox" checked={staff.isSocialInsurance} onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, isSocialInsurance: e.target.checked } : s) }))} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
                   </div>
 
                   {/* Help */}
                   <div className="flex justify-between lg:justify-center items-center gap-2 lg:gap-0">
-                    <span className="lg:hidden text-[10px] font-bold text-slate-400">ヘルプ要員</span>
+                    <span className="md:hidden text-[10px] font-bold text-slate-400">ヘルプ要員</span>
                     <input type="checkbox" checked={staff.isHelp} onChange={(e) => updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === staff.id ? { ...s, isHelp: e.target.checked } : s) }))} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
                   </div>
 
                   {/* PASS */}
                   <div className="flex justify-between lg:justify-center items-center gap-2">
-                    <span className="lg:hidden text-[10px] font-bold text-slate-400">PASS</span>
+                    <span className="md:hidden text-[10px] font-bold text-slate-400">PASS</span>
                     <input
                       type="text"
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-mono outline-none focus:border-blue-500 placeholder:text-slate-300"
@@ -111,7 +112,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
 
                   {/* 交通費 */}
                   <div className="flex justify-between lg:justify-end items-center gap-2">
-                    <span className="lg:hidden text-[10px] font-bold text-slate-400">
+                    <span className="md:hidden text-[10px] font-bold text-slate-400">
                       {staff.type === "AP" ? "1日往復交通費" : "月額定期代"}
                     </span>
                     <div className="flex items-center gap-1">
@@ -201,6 +202,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
             );
           })}
         </div>
+        </div>{/* overflow-x-auto */}
       </div>
     </div>
   );
