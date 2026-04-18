@@ -244,20 +244,14 @@ export default function DashboardTab({
           <span className="font-bold text-xs text-slate-700">日次売上・人件費シミュレーション</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="grid grid-cols-2 divide-x divide-slate-100">
+          {/* lg以上で2列、それ以下は1列スクロール */}
+          <div className="hidden lg:grid grid-cols-2 divide-x divide-slate-100 h-full">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <TableHead />
                 <tbody>
                   {leftDays.map((day) => (
-                    <DayRow
-                      key={day.date}
-                      day={day}
-                      currentStaff={currentStaff}
-                      offDays={offDays}
-                      targetRatio={targetRatio}
-                      updateData={updateData}
-                    />
+                    <DayRow key={day.date} day={day} currentStaff={currentStaff} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
                   ))}
                 </tbody>
               </table>
@@ -267,18 +261,21 @@ export default function DashboardTab({
                 <TableHead />
                 <tbody>
                   {rightDays.map((day) => (
-                    <DayRow
-                      key={day.date}
-                      day={day}
-                      currentStaff={currentStaff}
-                      offDays={offDays}
-                      targetRatio={targetRatio}
-                      updateData={updateData}
-                    />
+                    <DayRow key={day.date} day={day} currentStaff={currentStaff} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+          <div className="lg:hidden overflow-x-auto">
+            <table className="w-full text-left">
+              <TableHead />
+              <tbody>
+                {monthDailyData.map((day) => (
+                  <DayRow key={day.date} day={day} currentStaff={currentStaff} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

@@ -53,11 +53,11 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h1 className="text-base font-black text-slate-900 tracking-tight">
           {data.year}年{data.month}月 — シフト作成
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1.5">
             {weeks.map((_, i) => (
               <button

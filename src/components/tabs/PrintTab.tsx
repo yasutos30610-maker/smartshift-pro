@@ -32,14 +32,14 @@ export default function PrintTab({
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
       {/* Header */}
-      <div className="flex justify-between items-center mb-3 shrink-0">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-3 shrink-0">
         <div>
           <h1 className="text-base font-black text-slate-900 tracking-tight">
             {data.year}年{data.month}月 — {currentStore?.name}
           </h1>
           <p className="text-[11px] text-slate-400">シフト(Weekly) — 週別シフト一覧</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
             {weeks.map((_, i) => (
               <button
