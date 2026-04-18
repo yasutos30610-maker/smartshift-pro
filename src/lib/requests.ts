@@ -122,22 +122,20 @@ export async function updateRequestStatus(
 // ─── ストア一覧をSupabaseから取得（スタッフポータル用）─────────────────────
 
 export async function loadStoresForMonth(
-  year: number,
-  month: number
+  _year: number,
+  _month: number
 ): Promise<Array<{ storeId: string; storeName: string }>> {
   try {
+    // 最新の shift_data 行から payload.stores を取得（当月データ不問）
     const { data, error } = await supabase
       .from("shift_data")
-      .select("store_id, payload")
-      .eq("year", year)
-      .eq("month", month);
+      .select("payload")
+      .order("updated_at", { ascending: false })
+      .limit(1);
     if (error) throw error;
-    return (data ?? []).flatMap((row) => {
-      const payload = row.payload as { stores?: Array<{ id: string; name: string }> } | null;
-      const store = payload?.stores?.find((s) => s.id === row.store_id);
-      if (!store) return [];
-      return [{ storeId: row.store_id as string, storeName: store.name }];
-    });
+    const payload = (data?.[0]?.payload as { stores?: Array<{ id: string; name: string }> }) ?? null;
+    if (!payload?.stores?.length) return [];
+    return payload.stores.map((s) => ({ storeId: s.id, storeName: s.name }));
   } catch (e) {
     console.error("ストア一覧取得エラー:", e);
     return [];
