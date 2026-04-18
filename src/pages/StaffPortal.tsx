@@ -145,7 +145,7 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900 flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900 flex flex-col items-center justify-center overflow-y-auto px-4 py-10">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -849,7 +849,7 @@ export default function StaffPortal() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="min-h-dvh bg-slate-50 font-sans" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
         <div className="flex items-center gap-3">
