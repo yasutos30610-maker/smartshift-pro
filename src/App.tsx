@@ -45,7 +45,8 @@ export default function App() {
     ? data.allStaff
         .filter((s) => s.storeId === data.selectedStoreId)
         .sort((a, b) => {
-          if (a.type !== b.type) return a.type === "社員" ? -1 : 1;
+          const grp = (s: typeof a) => s.isRetired ? 2 : s.type === "社員" ? 0 : 1;
+          if (grp(a) !== grp(b)) return grp(a) - grp(b);
           return a.name.localeCompare(b.name, "ja");
         })
     : [];
