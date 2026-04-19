@@ -8,7 +8,7 @@ export function buildDefaultData(): AppData {
   const days = getDaysArray(year, month);
   const dailyDataRecord: AppData["dailyDataRecord"] = {};
   days.forEach(({ date }) => {
-    dailyDataRecord[date] = { date, salesBudget: 500000, salesActual: 0, shifts: [] };
+    dailyDataRecord[date] = { date, salesBudget: 0, salesActual: 0, shifts: [] };
   });
   return {
     stores: [

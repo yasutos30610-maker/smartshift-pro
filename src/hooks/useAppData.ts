@@ -77,7 +77,7 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
     const newRecord = { ...data.dailyDataRecord };
     days.forEach(({ date }) => {
       if (!newRecord[date]) {
-        newRecord[date] = { date, salesBudget: 500000, salesActual: 0, shifts: [] };
+        newRecord[date] = { date, salesBudget: 0, salesActual: 0, shifts: [] };
         changed = true;
       }
     });
