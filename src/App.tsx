@@ -41,7 +41,14 @@ export default function App() {
   // ── 派生値 ──────────────────────────────────────────────────────────────
   const currentDays = data ? getDaysArray(data.year, data.month) : [];
   const weeks = data ? getWeeks(data.year, data.month) : [];
-  const currentStaff = data ? data.allStaff.filter((s) => s.storeId === data.selectedStoreId) : [];
+  const currentStaff = data
+    ? data.allStaff
+        .filter((s) => s.storeId === data.selectedStoreId)
+        .sort((a, b) => {
+          if (a.type !== b.type) return a.type === "社員" ? -1 : 1;
+          return a.name.localeCompare(b.name, "ja");
+        })
+    : [];
   const currentStore = data ? data.stores.find((s) => s.id === data.selectedStoreId) : undefined;
   const offDays = data
     ? (data.offDaySettings[data.year] || Array(12).fill(9))[data.month - 1] ?? 9
