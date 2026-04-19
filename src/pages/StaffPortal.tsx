@@ -145,7 +145,8 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900 flex flex-col items-center justify-center overflow-y-auto px-4 py-10">
+    <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900 flex flex-col overflow-y-auto">
+      <div className="my-auto px-4 py-10 w-full flex flex-col items-center">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -241,6 +242,7 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -531,12 +533,9 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
       </div>
 
       {/* Submit button */}
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="text-[11px] text-slate-400">
-          {Object.values(inputs).filter((v) => !v.off).length}日 選択中
-        </span>
+      <div className="mt-4 flex flex-col gap-2">
         <button
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black shadow transition-all ${
+          className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-black shadow transition-all ${
             submitting
               ? "bg-slate-200 text-slate-400 cursor-not-allowed"
               : isResubmit
@@ -549,6 +548,9 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
           <Send size={15} />
           {submitting ? "送信中..." : isResubmit ? "再申請する" : "シフト希望を送信"}
         </button>
+        <span className="text-[11px] text-slate-400 text-center">
+          {Object.values(inputs).filter((v) => !v.off).length}日 選択中
+        </span>
       </div>
     </div>
   );
