@@ -13,7 +13,12 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
   const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const currentStaff = data.allStaff.filter((s) => s.storeId === data.selectedStoreId);
+  const currentStaff = data.allStaff
+    .filter((s) => s.storeId === data.selectedStoreId)
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === "社員" ? -1 : 1;
+      return a.name.localeCompare(b.name, "ja");
+    });
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
