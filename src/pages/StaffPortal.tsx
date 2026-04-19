@@ -5,6 +5,7 @@ import { loadStoresForMonth, submitRequest, fetchRequests } from "../lib/request
 import type { AppData, Staff, RequestedShift, ShiftRequest } from "../types";
 import { getDaysArray, getWeeks, DOW, formatDate } from "../utils/date";
 import { calcMinutes } from "../utils/calc";
+import { useT, type Lang } from "../i18n/staff";
 
 // ─── 定数 ──────────────────────────────────────────────────────────────────
 const START_HOUR = 9;
@@ -17,7 +18,6 @@ function timeToPercent(time: string): number {
   return Math.max(0, Math.min(100, ((total - START_HOUR) / (END_HOUR - START_HOUR)) * 100));
 }
 
-// 30分単位のグリッドスロット：整数時のみラベル表示、:30は線のみ
 const GRID_SLOTS = Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => {
   const h = START_HOUR + Math.floor(i / 2);
   const isHour = i % 2 === 0;
@@ -58,12 +58,34 @@ function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
+// ─── 言語トグルボタン ────────────────────────────────────────────────────────
+function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  return (
+    <div className="flex gap-0.5 bg-white/10 rounded-lg p-0.5">
+      {(["ja", "en"] as Lang[]).map((l) => (
+        <button
+          key={l}
+          className={`px-2.5 py-1 rounded-md text-xs font-black transition-all ${
+            lang === l ? "bg-white text-slate-800" : "text-white/60 hover:text-white"
+          }`}
+          onClick={() => onChange(l)}
+        >
+          {l === "ja" ? "日本語" : "English"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── ログイン画面 ──────────────────────────────────────────────────────────
 interface LoginScreenProps {
+  lang: Lang;
+  onLangChange: (l: Lang) => void;
   onLogin: (staff: Staff, data: AppData) => void;
 }
 
-function LoginScreen({ onLogin }: LoginScreenProps) {
+function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
+  const t = useT(lang);
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -77,16 +99,13 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
   const [loadingStores, setLoadingStores] = useState(true);
   const [loadingStore, setLoadingStore] = useState(false);
 
-  // ストア一覧を取得
   useEffect(() => {
     async function load() {
       setLoadingStores(true);
-      // Supabase から今月のストア一覧を取得
       const list = await loadStoresForMonth(year, month);
       if (list.length > 0) {
         setStores(list);
       } else {
-        // フォールバック: localStorage から取得
         const local = localStorage.getItem("smartshift_data");
         if (local) {
           try {
@@ -100,7 +119,6 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
     void load();
   }, [year, month]);
 
-  // ストア選択時にスタッフ一覧を読み込み
   useEffect(() => {
     if (!selectedStoreId) return;
     async function loadStore() {
@@ -110,7 +128,6 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
       setPassError("");
       let data = await syncFromSupabase(selectedStoreId, year, month);
       if (!data) {
-        // localStorage フォールバック
         const local = localStorage.getItem("smartshift_data");
         if (local) {
           try { data = JSON.parse(local) as AppData; } catch { /* ignore */ }
@@ -130,14 +147,12 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
     if (!appData || !staffId) return;
     const staff = appData.allStaff.find((s) => s.id === staffId);
     if (!staff) return;
-    // PASS 未設定のスタッフはログイン不可
     if (!staff.pass) {
-      setPassError("PASSが設定されていません。管理者に設定を依頼してください");
+      setPassError(t("noPassSet"));
       return;
     }
-    // PASS 照合
     if (staff.pass !== pass) {
-      setPassError("パスワードが違います");
+      setPassError(t("wrongPass"));
       return;
     }
     setPassError("");
@@ -147,102 +162,107 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
   return (
     <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900 flex flex-col overflow-y-auto">
       <div className="my-auto px-4 py-10 w-full flex flex-col items-center">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500 shadow-xl mb-4">
-            <CalendarDays size={32} className="text-white" />
+        <div className="w-full max-w-sm">
+          {/* Lang toggle */}
+          <div className="flex justify-end mb-4">
+            <LangToggle lang={lang} onChange={onLangChange} />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">SmartShift</h1>
-          <p className="text-amber-200/70 text-sm font-bold mt-1">スタッフポータル</p>
-        </div>
 
-        {/* Card */}
-        <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6 shadow-2xl">
-          {loadingStores ? (
-            <div className="text-center py-8">
-              <div className="w-8 h-8 border-4 border-white/20 border-t-amber-400 rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-white/60 text-sm">読み込み中...</p>
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500 shadow-xl mb-4">
+              <CalendarDays size={32} className="text-white" />
             </div>
-          ) : stores.length === 0 ? (
-            <div className="text-center py-8">
-              <AlertCircle size={32} className="text-amber-400 mx-auto mb-3" />
-              <p className="text-white/80 text-sm font-bold">店舗データが見つかりません</p>
-              <p className="text-white/40 text-xs mt-1">管理者にお問い合わせください</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Store select */}
-              <div>
-                <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">店舗</label>
-                <select
-                  className="w-full bg-slate-800 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors"
-                  value={selectedStoreId}
-                  onChange={(e) => setSelectedStoreId(e.target.value)}
-                >
-                  <option value="" className="text-slate-900 bg-white">選択してください</option>
-                  {stores.map((s) => (
-                    <option key={s.storeId} value={s.storeId} className="text-slate-900 bg-white">{s.storeName}</option>
-                  ))}
-                </select>
+            <h1 className="text-2xl font-black text-white tracking-tight">SmartShift</h1>
+            <p className="text-amber-200/70 text-sm font-bold mt-1">{t("staffPortal")}</p>
+          </div>
+
+          {/* Card */}
+          <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6 shadow-2xl">
+            {loadingStores ? (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 border-4 border-white/20 border-t-amber-400 rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-white/60 text-sm">{t("loading")}</p>
               </div>
-
-              {/* Name select */}
-              {selectedStoreId && (
+            ) : stores.length === 0 ? (
+              <div className="text-center py-8">
+                <AlertCircle size={32} className="text-amber-400 mx-auto mb-3" />
+                <p className="text-white/80 text-sm font-bold">{t("noStoreData")}</p>
+                <p className="text-white/40 text-xs mt-1">{t("contactAdmin")}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Store select */}
                 <div>
-                  <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">名前</label>
-                  {loadingStore ? (
-                    <div className="w-6 h-6 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin" />
-                  ) : (
-                    <select
-                      className="w-full bg-slate-800 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors"
-                      value={staffId}
-                      onChange={(e) => { setStaffId(e.target.value); setPass(""); setPassError(""); }}
-                    >
-                      <option value="" className="text-slate-900 bg-white">選択してください</option>
-                      {staffList.map((s) => (
-                        <option key={s.id} value={s.id} className="text-slate-900 bg-white">{s.name}</option>
-                      ))}
-                    </select>
-                  )}
+                  <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">{t("store")}</label>
+                  <select
+                    className="w-full bg-slate-800 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors"
+                    value={selectedStoreId}
+                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                  >
+                    <option value="" className="text-slate-900 bg-white">{t("pleaseSelect")}</option>
+                    {stores.map((s) => (
+                      <option key={s.storeId} value={s.storeId} className="text-slate-900 bg-white">{s.storeName}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              {/* PASS — 名前選択後は常に表示 */}
-              {staffId && (
-                <div>
-                  <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">
-                    パスワード
-                  </label>
-                  <input
-                    type="password"
-                    className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors ${passError ? "border-rose-400" : "border-white/20"}`}
-                    value={pass}
-                    onChange={(e) => { setPass(e.target.value); setPassError(""); }}
-                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                    placeholder="パスワードを入力"
-                    autoComplete="current-password"
-                  />
-                  {passError && <p className="text-rose-400 text-xs font-bold mt-1">{passError}</p>}
-                </div>
-              )}
+                {/* Name select */}
+                {selectedStoreId && (
+                  <div>
+                    <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">{t("name")}</label>
+                    {loadingStore ? (
+                      <div className="w-6 h-6 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin" />
+                    ) : (
+                      <select
+                        className="w-full bg-slate-800 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors"
+                        value={staffId}
+                        onChange={(e) => { setStaffId(e.target.value); setPass(""); setPassError(""); }}
+                      >
+                        <option value="" className="text-slate-900 bg-white">{t("pleaseSelect")}</option>
+                        {staffList.map((s) => (
+                          <option key={s.id} value={s.id} className="text-slate-900 bg-white">{s.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
 
-              {/* Login button */}
-              <button
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all ${
-                  staffId && pass
-                    ? "bg-amber-500 hover:bg-amber-400 text-white shadow-lg"
-                    : "bg-white/10 text-white/30 cursor-not-allowed"
-                }`}
-                onClick={handleLogin}
-                disabled={!staffId || !pass}
-              >
-                <LogIn size={16} /> ログイン
-              </button>
-            </div>
-          )}
+                {/* Password */}
+                {staffId && (
+                  <div>
+                    <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">
+                      {t("password")}
+                    </label>
+                    <input
+                      type="password"
+                      className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors ${passError ? "border-rose-400" : "border-white/20"}`}
+                      value={pass}
+                      onChange={(e) => { setPass(e.target.value); setPassError(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                      placeholder={t("passwordPlaceholder")}
+                      autoComplete="current-password"
+                    />
+                    {passError && <p className="text-rose-400 text-xs font-bold mt-1">{passError}</p>}
+                  </div>
+                )}
+
+                {/* Login button */}
+                <button
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all ${
+                    staffId && pass
+                      ? "bg-amber-500 hover:bg-amber-400 text-white shadow-lg"
+                      : "bg-white/10 text-white/30 cursor-not-allowed"
+                  }`}
+                  onClick={handleLogin}
+                  disabled={!staffId || !pass}
+                >
+                  <LogIn size={16} /> {t("login")}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );
@@ -251,10 +271,12 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
 // ─── シフト提出タブ ────────────────────────────────────────────────────────
 interface SubmitTabProps {
   staff: Staff;
+  lang: Lang;
   onToast: (msg: string, type?: "success" | "error") => void;
 }
 
-function SubmitTab({ staff, onToast }: SubmitTabProps) {
+function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
+  const t = useT(lang);
   const now = new Date();
   const curYear = now.getFullYear();
   const curMonth = now.getMonth() + 1;
@@ -264,7 +286,6 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const [targetYear, setTargetYear] = useState(defaultYear);
   const [targetMonth, setTargetMonth] = useState(defaultMonth);
   const [weekIdx, setWeekIdx] = useState(0);
-  // 全日付を空白(未チェック)で初期化
   const [inputs, setInputs] = useState<Record<string, { inTime: string; outTime: string; off: boolean }>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -274,16 +295,13 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const weeks = getWeeks(targetYear, targetMonth);
   const weekDays = weeks[weekIdx] ?? [];
 
-  // 月変更時に週タブをリセット
   useEffect(() => { setWeekIdx(0); }, [targetYear, targetMonth]);
 
-  // 既存申請の有無だけ確認（フォームには反映しない）
   useEffect(() => {
     async function load() {
       const reqs = await fetchRequests(staff.storeId, targetYear, targetMonth);
       const mine = reqs.find((r) => r.staffId === staff.id);
       setExistingRequest(mine ?? null);
-      // フォームは常に空白スタート
       setInputs({});
       setSubmitted(false);
     }
@@ -300,7 +318,6 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
   const isResubmit = existingRequest != null;
 
   const handleSubmit = async () => {
-    // 今回のフォームで入力した日付
     const newShifts: RequestedShift[] = days
       .filter((d) => inputs[d.date] && !inputs[d.date].off && inputs[d.date].inTime)
       .map((d) => ({
@@ -309,7 +326,6 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
         outTime: inputs[d.date].outTime || "18:00",
       }));
 
-    // 再提出の場合：既存シフト ＋ 新しい入力をマージ（同じ日付は上書き、公休は除外）
     const mergedShifts: RequestedShift[] = isResubmit && existingRequest
       ? [
           ...existingRequest.shifts.filter(
@@ -320,7 +336,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
       : newShifts;
 
     if (mergedShifts.length === 0) {
-      onToast("希望シフトを1日以上入力してください", "error");
+      onToast(t("noShiftError"), "error");
       return;
     }
 
@@ -343,11 +359,15 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
       const totalCount = mergedShifts.length;
       onToast(
         isResubmit
-          ? `再申請しました！（合計${totalCount}日 / 今回${addedCount}日追加）`
-          : `シフト希望を送信しました！（${totalCount}日）`
+          ? lang === "ja"
+            ? `再申請しました！（合計${totalCount}日 / 今回${addedCount}日追加）`
+            : `Resubmitted! (Total ${totalCount} days / ${addedCount} added)`
+          : lang === "ja"
+            ? `シフト希望を送信しました！（${totalCount}日）`
+            : `Shift request sent! (${totalCount} days)`
       );
     } else {
-      onToast("送信に失敗しました。もう一度お試しください", "error");
+      onToast(t("sendFailed"), "error");
     }
   };
 
@@ -357,27 +377,28 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
     return { year: y, month: m };
   });
 
+  const locale = lang === "ja" ? "ja-JP" : "en-US";
+
   if (submitted) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isResubmit ? "bg-blue-100" : "bg-emerald-100"}`}>
           <CheckCircle size={40} className={isResubmit ? "text-blue-600" : "text-emerald-600"} />
         </div>
-        <h2 className="text-xl font-black text-slate-900">{isResubmit ? "再申請完了！" : "送信完了！"}</h2>
-        <p className="text-slate-500 text-sm text-center">
-          {targetYear}年{targetMonth}月のシフト希望を{isResubmit ? "再申請" : "送信"}しました。<br />
-          管理者が確認後に反映されます。
+        <h2 className="text-xl font-black text-slate-900">{isResubmit ? t("resubmitTitle") : t("sentTitle")}</h2>
+        <p className="text-slate-500 text-sm text-center whitespace-pre-line">
+          {t("sentMsg", targetYear, targetMonth, isResubmit)}
         </p>
         {isResubmit && existingRequest && (
           <p className="text-xs text-blue-600 font-bold bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 text-center">
-            前回分を引き継いで上書き提出しました
+            {t("inheritedMsg")}
           </p>
         )}
         <button
           className="mt-2 px-6 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors"
           onClick={() => setSubmitted(false)}
         >
-          もう一度入力する
+          {t("enterAgain")}
         </button>
       </div>
     );
@@ -387,7 +408,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
     <div>
       {/* Month selector */}
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs font-black text-slate-400 shrink-0">対象月</span>
+        <span className="text-xs font-black text-slate-400 shrink-0">{t("targetMonth")}</span>
         <div className="flex gap-1.5 flex-wrap">
           {monthOptions.map((opt) => (
             <button
@@ -399,7 +420,9 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
               }`}
               onClick={() => { setTargetYear(opt.year); setTargetMonth(opt.month); }}
             >
-              {opt.year !== curYear ? `${opt.year}/` : ""}{opt.month}月
+              {lang === "ja"
+                ? `${opt.year !== curYear ? `${opt.year}/` : ""}${opt.month}月`
+                : new Date(opt.year, opt.month - 1).toLocaleString("en-US", { month: "short", year: opt.year !== curYear ? "numeric" : undefined })}
             </button>
           ))}
         </div>
@@ -413,17 +436,17 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
           <div className="flex items-center gap-2">
             <Clock size={13} className={existingRequest.resubmit ? "text-blue-500" : "text-amber-500"} />
             <span className="text-xs font-black text-slate-800">
-              {existingRequest.resubmit ? "再申請済み" : "提出済み"}
+              {existingRequest.resubmit ? t("resubmitted") : t("submitted")}
             </span>
             <span className="text-[10px] text-slate-400">
-              {existingRequest.status === "reflected" ? "反映済み" : "確認中"} ·{" "}
-              {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP")} ·{" "}
-              {existingRequest.shifts.length}日
+              {existingRequest.status === "reflected" ? t("reflected") : t("pending")} ·{" "}
+              {new Date(existingRequest.submittedAt).toLocaleDateString(locale)} ·{" "}
+              {existingRequest.shifts.length}{lang === "ja" ? "日" : "d"}
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1 ml-5">
-            新しい日付を追加、または変更したい日を入力して再申請すると<br />
-            <span className="font-bold text-slate-700">既存の{existingRequest.shifts.length}日に上書き追加</span>されます
+            {t("addOrChange")}<br />
+            <span className="font-bold text-slate-700">{t("existingDays", existingRequest.shifts.length)}</span>
           </p>
         </div>
       )}
@@ -440,7 +463,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
             }`}
             onClick={() => setWeekIdx(i)}
           >
-            {wk[0] ? `${targetMonth}/${wk[0].day}〜` : `W${i + 1}`}
+            {wk[0] ? t("weekLabel", targetMonth, wk[0].day) : `W${i + 1}`}
           </button>
         ))}
       </div>
@@ -449,11 +472,13 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
         <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 rounded-t-xl flex items-center justify-between">
           <span className="text-[10px] font-black text-slate-400">
-            {targetYear}年{targetMonth}月 W{weekIdx + 1}（{weekDays.length}日間）
+            {lang === "ja"
+              ? `${targetYear}年${targetMonth}月 W${weekIdx + 1}（${weekDays.length}日間）`
+              : `${new Date(targetYear, targetMonth - 1).toLocaleString("en-US", { month: "short" })} ${targetYear} W${weekIdx + 1} (${weekDays.length}d)`}
           </span>
           {existingRequest && (
             <span className="text-[10px] text-blue-400 font-bold">
-              {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出分 ▶ 青字
+              {new Date(existingRequest.submittedAt).toLocaleDateString(locale, { month: "numeric", day: "numeric" })}{t("blueNote")}
             </span>
           )}
         </div>
@@ -468,7 +493,6 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                 key={d.date}
                 className={`px-3 py-2.5 transition-colors ${isChecked ? "bg-amber-50/40" : ""}`}
               >
-                {/* メイン行：チェック + 日付 + 時間入力 */}
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -503,7 +527,7 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                       className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs font-black transition-colors"
                       onClick={() => setInputs((prev) => { const next = { ...prev }; delete next[d.date]; return next; })}
                     >
-                      公休
+                      {t("dayOff")}
                       <span className="text-rose-400 text-[10px] ml-0.5">×</span>
                     </button>
                   ) : (
@@ -511,15 +535,14 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
                       className="text-xs font-bold text-slate-300 hover:text-rose-500 hover:bg-rose-50 px-2 py-0.5 rounded-lg transition-colors border border-transparent hover:border-rose-200"
                       onClick={() => setDay(d.date, "off", true)}
                     >
-                      公休
+                      {t("dayOff")}
                     </button>
                   )}
                 </div>
-                {/* 前回申請（サブ行） */}
                 {prevShift && existingRequest && (
                   <div className="ml-7 mt-1 flex items-center gap-1">
                     <span className="text-[10px] text-slate-400">
-                      {new Date(existingRequest.submittedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}提出
+                      {t("prevSubmit", new Date(existingRequest.submittedAt).toLocaleDateString(locale, { month: "numeric", day: "numeric" }))}
                     </span>
                     <span className="text-[10px] font-bold text-blue-500">{prevShift.inTime}</span>
                     <span className="text-[10px] text-slate-300">–</span>
@@ -546,10 +569,10 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
           disabled={submitting}
         >
           <Send size={15} />
-          {submitting ? "送信中..." : isResubmit ? "再申請する" : "シフト希望を送信"}
+          {submitting ? t("sending") : isResubmit ? t("resubmit") : t("sendShift")}
         </button>
         <span className="text-[11px] text-slate-400 text-center">
-          {Object.values(inputs).filter((v) => !v.off).length}日 選択中
+          {t("daysSelected", Object.values(inputs).filter((v) => !v.off).length)}
         </span>
       </div>
     </div>
@@ -559,10 +582,12 @@ function SubmitTab({ staff, onToast }: SubmitTabProps) {
 // ─── シフト(Daily)タブ — 確定シフト確認 ──────────────────────────────────
 interface DailyViewProps {
   appData: AppData;
+  lang: Lang;
   weeks: ReturnType<typeof getWeeks>;
 }
 
-function DailyView({ appData, weeks }: DailyViewProps) {
+function DailyView({ appData, lang, weeks }: DailyViewProps) {
+  const t = useT(lang);
   const [weekIdx, setWeekIdx] = useState(0);
   const week = weeks[weekIdx] ?? [];
   const confirmedDates = new Set(appData.confirmedDates ?? []);
@@ -575,15 +600,14 @@ function DailyView({ appData, weeks }: DailyViewProps) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
         <Clock size={36} className="text-slate-300" />
-        <p className="text-slate-500 text-sm font-bold">まだシフトが発表されていません</p>
-        <p className="text-slate-400 text-xs">管理者がシフトを確定後、ここに表示されます</p>
+        <p className="text-slate-500 text-sm font-bold">{t("notPublished")}</p>
+        <p className="text-slate-400 text-xs">{t("notPublishedSub")}</p>
       </div>
     );
   }
 
   return (
     <div>
-      {/* Week selector */}
       <div className="flex items-center gap-2 mb-3">
         <div className="flex gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
           {weeks.map((_, i) => (
@@ -604,7 +628,7 @@ function DailyView({ appData, weeks }: DailyViewProps) {
 
       <div className="space-y-2">
         {confirmedWeekDays.length === 0 ? (
-          <div className="py-8 text-center text-slate-300 text-xs font-bold">この週は未確定です</div>
+          <div className="py-8 text-center text-slate-300 text-xs font-bold">{t("weekNotConfirmed")}</div>
         ) : (
           confirmedWeekDays.map((d) => {
             const dayData = appData.dailyDataRecord[d.date];
@@ -622,21 +646,18 @@ function DailyView({ appData, weeks }: DailyViewProps) {
 
             return (
               <div key={d.date} className="bg-white border border-slate-200 rounded-xl shadow-sm">
-                {/* ヘッダー（固定） */}
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-200 rounded-t-xl">
                   <span className="font-black text-xs text-slate-800">{formatDate(d.date)}</span>
                   <span className="text-[10px] text-slate-400 font-bold">{DOW[d.dow]}</span>
-                  <span className="text-[10px] text-slate-400">{shifts.length}名</span>
-                  <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">確定済み</span>
+                  <span className="text-[10px] text-slate-400">{t("staffCount", shifts.length)}</span>
+                  <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{t("confirmed")}</span>
                 </div>
 
                 {shifts.length === 0 ? (
-                  <div className="px-3 py-3 text-[11px] text-slate-300 text-center rounded-b-xl">シフトなし</div>
+                  <div className="px-3 py-3 text-[11px] text-slate-300 text-center rounded-b-xl">{t("noShift")}</div>
                 ) : (
-                  /* overflow-x-auto を外枠から切り離して独立させる */
                   <div className="overflow-x-auto rounded-b-xl" style={{ WebkitOverflowScrolling: "touch" }}>
                     <div className="px-3 py-2" style={{ minWidth: "580px" }}>
-                      {/* 時間軸ラベル */}
                       <div className="flex mb-1" style={{ marginLeft: "80px" }}>
                         {GRID_SLOTS.map((slot, i) => (
                           <div key={i} className="flex-1 border-l border-slate-100 pl-0.5" style={{ minWidth: 0 }}>
@@ -646,7 +667,6 @@ function DailyView({ appData, weeks }: DailyViewProps) {
                           </div>
                         ))}
                       </div>
-                      {/* シフト行 */}
                       <div className="space-y-1">
                         {shifts.map((sh) => {
                           const s = currentStaff.find((st) => st.id === sh.staffId);
@@ -697,10 +717,12 @@ function DailyView({ appData, weeks }: DailyViewProps) {
 // ─── シフト(Weekly)タブ ────────────────────────────────────────────────────
 interface WeeklyViewProps {
   appData: AppData;
+  lang: Lang;
   weeks: ReturnType<typeof getWeeks>;
 }
 
-function WeeklyView({ appData, weeks }: WeeklyViewProps) {
+function WeeklyView({ appData, lang, weeks }: WeeklyViewProps) {
+  const t = useT(lang);
   const [weekIdx, setWeekIdx] = useState(0);
   const week = weeks[weekIdx] ?? [];
   const confirmedDates = new Set(appData.confirmedDates ?? []);
@@ -708,15 +730,15 @@ function WeeklyView({ appData, weeks }: WeeklyViewProps) {
     .filter((s) => s.storeId === appData.selectedStoreId)
     .sort((a, b) => {
       if (a.type !== b.type) return a.type === "社員" ? -1 : 1;
-      return a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name, "ja");
     });
 
   if (confirmedDates.size === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
         <Clock size={36} className="text-slate-300" />
-        <p className="text-slate-500 text-sm font-bold">まだシフトが発表されていません</p>
-        <p className="text-slate-400 text-xs">管理者がシフトを確定後、ここに表示されます</p>
+        <p className="text-slate-500 text-sm font-bold">{t("notPublished")}</p>
+        <p className="text-slate-400 text-xs">{t("notPublishedSub")}</p>
       </div>
     );
   }
@@ -746,17 +768,17 @@ function WeeklyView({ appData, weeks }: WeeklyViewProps) {
           <table className="text-left" style={{ minWidth: "420px", width: "100%" }}>
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap w-28">スタッフ</th>
+                <th className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap w-28">{t("staffCol")}</th>
                 {week.map((d) => (
                   <th key={d.date} className={`px-2 py-2 text-center min-w-[72px] ${!confirmedDates.has(d.date) ? "opacity-30" : ""}`}>
                     <div className="text-[10px] font-bold text-slate-400">{DOW[d.dow]}</div>
-                    <div className="text-xs font-black text-slate-700">{d.day}日</div>
+                    <div className="text-xs font-black text-slate-700">{d.day}{lang === "ja" ? "日" : ""}</div>
                     {confirmedDates.has(d.date) && (
-                      <div className="text-[8px] text-emerald-600 font-bold">確定</div>
+                      <div className="text-[8px] text-emerald-600 font-bold">{t("confirmedBadge")}</div>
                     )}
                   </th>
                 ))}
-                <th className="px-3 py-2 text-[10px] font-bold text-slate-400 text-center whitespace-nowrap">合計</th>
+                <th className="px-3 py-2 text-[10px] font-bold text-slate-400 text-center whitespace-nowrap">{t("total")}</th>
               </tr>
             </thead>
             <tbody>
@@ -796,7 +818,7 @@ function WeeklyView({ appData, weeks }: WeeklyViewProps) {
                       }
                       return (
                         <td key={d.date} className="px-1 py-1.5 text-center bg-slate-50/40">
-                          <span className="text-[10px] font-bold text-slate-300">公休</span>
+                          <span className="text-[10px] font-bold text-slate-300">{t("offDay")}</span>
                         </td>
                       );
                     })}
@@ -816,10 +838,20 @@ function WeeklyView({ appData, weeks }: WeeklyViewProps) {
 
 // ─── メインコンポーネント ──────────────────────────────────────────────────
 export default function StaffPortal() {
+  const [lang, setLang] = useState<Lang>(() => {
+    return (localStorage.getItem("smartshift_lang") as Lang) ?? "ja";
+  });
   const [loggedInStaff, setLoggedInStaff] = useState<Staff | null>(null);
   const [appData, setAppData] = useState<AppData | null>(null);
   const [activeTab, setActiveTab] = useState<"submit" | "daily" | "weekly">("submit");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const t = useT(lang);
+
+  const handleLangChange = (l: Lang) => {
+    setLang(l);
+    localStorage.setItem("smartshift_lang", l);
+  };
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -827,7 +859,6 @@ export default function StaffPortal() {
   };
 
   const handleLogin = (staff: Staff, data: AppData) => {
-    // selectedStoreId をログインしたストアに合わせる
     setLoggedInStaff(staff);
     setAppData({ ...data, selectedStoreId: staff.storeId });
   };
@@ -839,15 +870,15 @@ export default function StaffPortal() {
   };
 
   if (!loggedInStaff || !appData) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen lang={lang} onLangChange={handleLangChange} onLogin={handleLogin} />;
   }
 
   const weeks = getWeeks(appData.year, appData.month);
 
   const TABS = [
-    { id: "submit" as const, label: "シフト提出", icon: <Send size={14} /> },
-    { id: "daily" as const, label: "シフト(Daily)", icon: <CalendarDays size={14} /> },
-    { id: "weekly" as const, label: "シフト(Weekly)", icon: <CalendarRange size={14} /> },
+    { id: "submit" as const, label: t("tabSubmit"), icon: <Send size={14} /> },
+    { id: "daily" as const, label: t("tabDaily"), icon: <CalendarDays size={14} /> },
+    { id: "weekly" as const, label: t("tabWeekly"), icon: <CalendarRange size={14} /> },
   ];
 
   return (
@@ -861,25 +892,28 @@ export default function StaffPortal() {
           <div>
             <div className="text-sm font-black text-slate-900 leading-none">{loggedInStaff.name}</div>
             <div className="text-[10px] text-slate-400 font-bold leading-none mt-0.5">
-              {appData.stores.find((s) => s.id === loggedInStaff.storeId)?.name} — {appData.year}年{appData.month}月
+              {appData.stores.find((s) => s.id === loggedInStaff.storeId)?.name}
             </div>
           </div>
         </div>
-        <button
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-slate-200"
-          onClick={handleLogout}
-        >
-          <LogOut size={13} /> ログアウト
-        </button>
+        <div className="flex items-center gap-2">
+          <LangToggle lang={lang} onChange={handleLangChange} />
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-slate-200"
+            onClick={handleLogout}
+          >
+            <LogOut size={13} /> <span className="hidden sm:inline">{t("logout")}</span>
+          </button>
+        </div>
       </header>
 
-      {/* Tab bar — スティッキー */}
+      {/* Tab bar */}
       <div className="bg-white border-b border-slate-200 px-4 sticky z-10" style={{ top: "calc(3.5rem + env(safe-area-inset-top, 0px))" }}>
         <div className="flex gap-1">
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold border-b-2 transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-3 text-xs font-bold border-b-2 transition-all ${
                 activeTab === tab.id
                   ? "text-amber-700 border-amber-500"
                   : "text-slate-400 border-transparent hover:text-slate-600"
@@ -896,13 +930,13 @@ export default function StaffPortal() {
       {/* Content */}
       <main className="p-4 max-w-3xl mx-auto">
         {activeTab === "submit" && (
-          <SubmitTab staff={loggedInStaff} onToast={showToast} />
+          <SubmitTab staff={loggedInStaff} lang={lang} onToast={showToast} />
         )}
         {activeTab === "daily" && (
-          <DailyView appData={appData} weeks={weeks} />
+          <DailyView appData={appData} lang={lang} weeks={weeks} />
         )}
         {activeTab === "weekly" && (
-          <WeeklyView appData={appData} weeks={weeks} />
+          <WeeklyView appData={appData} lang={lang} weeks={weeks} />
         )}
       </main>
 
