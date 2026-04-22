@@ -65,6 +65,8 @@ export interface Shift {
   // Request
   requestedInTime?: string;
   requestedOutTime?: string;
+  // Cross-store
+  isHelpReceived?: boolean; // 他店から取込んだヘルプシフト（社員は時給換算で請求）
 }
 
 export interface DailyData {

@@ -70,13 +70,38 @@ export function calcDailyCost(
     const [y, mo] = dateStr.split("-").map(Number);
     const daysInMo = getDaysInMonth(y, mo);
     const workingDays = Math.max(1, daysInMo - monthlyOffDays);
-    const dailyBase = staff.monthlySalary / workingDays;
     const hrRate = staff.monthlySalary / 173;
+
+    // ヘルプ取込シフト: 自店舗は日次基本給でなく時給換算で請求
+    if (shift.isHelpReceived) {
+      let net = 0;
+      let mid = 0;
+      if (p1) {
+        net += Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+        mid += calcMidnightMinutes(shift.inTime, shift.outTime);
+      }
+      if (p2) {
+        net += Math.max(0, calcMinutes(shift.inTime2!, shift.outTime2!) - (shift.breakMinutes2 || 0));
+        mid += calcMidnightMinutes(shift.inTime2!, shift.outTime2!);
+      }
+      const base = (net / 60) * hrRate;
+      const ot = Math.max(0, net - 480);
+      return base + (ot / 60) * hrRate * 0.25 + (mid / 60) * hrRate * 0.25 + dailyAdd;
+    }
+
+    // 通常シフト: 日次基本給からヘルプ時間分を差し引く
+    const dailyBase = staff.monthlySalary / workingDays;
+    const p1HelpNet = (shift.isHelp && shift.inTime && shift.outTime)
+      ? Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0)) : 0;
+    const p2HelpNet = (shift.isHelp2 && shift.inTime2 && shift.outTime2)
+      ? Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0)) : 0;
+    const helpDeduction = ((p1HelpNet + p2HelpNet) / 60) * hrRate;
+
     let totalMidnight = 0;
     if (p1) totalMidnight += calcMidnightMinutes(shift.inTime, shift.outTime);
     if (p2) totalMidnight += calcMidnightMinutes(shift.inTime2!, shift.outTime2!);
     const midExtra = (totalMidnight / 60) * hrRate * 0.25;
     const transportDaily = (staff.monthlyTransport ?? 0) / workingDays;
-    return dailyBase + midExtra + dailyAdd + transportDaily;
+    return Math.max(0, dailyBase - helpDeduction) + midExtra + dailyAdd + transportDaily;
   }
 }

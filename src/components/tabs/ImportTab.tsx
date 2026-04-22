@@ -137,7 +137,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
     updateData((d) => {
       const dayData = d.dailyDataRecord[entry.date];
       if (!dayData) return d;
-      const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false };
+      const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false, isHelpReceived: true };
       return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] } } };
     });
   };
@@ -150,7 +150,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
         if (!dayData) return;
         const already = dayData.shifts.some((s) => s.storeId === d.selectedStoreId && s.staffId === entry.staffId && s.inTime === entry.inTime);
         if (!already) {
-          const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false };
+          const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false, isHelpReceived: true };
           next = { ...next, dailyDataRecord: { ...next.dailyDataRecord, [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] } } };
         }
       });
