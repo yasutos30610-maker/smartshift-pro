@@ -5,6 +5,8 @@ import { calcMinutes } from "../utils/calc";
 export function useAlerts(data: AppData, currentStaff: Staff[], currentDays: DayInfo[]): Alert[] {
   return useMemo(() => {
     const alerts: Alert[] = [];
+
+    // 連勤・社保チェック
     currentStaff.forEach((staff) => {
       let consecutive = 0;
       let totalNet = 0;
@@ -24,6 +26,33 @@ export function useAlerts(data: AppData, currentStaff: Staff[], currentDays: Day
         alerts.push({ name: staff.name, msg: "月88h超 → 社保加入検討" });
       }
     });
+
+    // ヘルプ未反映チェック
+    const sid = data.selectedStoreId;
+    const alerted = new Set<string>();
+    Object.values(data.dailyDataRecord).forEach((dayData) => {
+      dayData.shifts.forEach((sh) => {
+        if (sh.isHelp && sh.helpStoreId === sid && !alerted.has(sh.staffId)) {
+          const already = dayData.shifts.some(
+            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime
+          );
+          if (!already) {
+            const staff = data.allStaff.find((s) => s.id === sh.staffId);
+            if (staff) { alerts.push({ name: staff.name, msg: "ヘルプ未反映" }); alerted.add(sh.staffId); }
+          }
+        }
+        if (sh.isHelp2 && sh.helpStoreId2 === sid && sh.inTime2 && !alerted.has(sh.staffId + ":2")) {
+          const already = dayData.shifts.some(
+            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime2
+          );
+          if (!already) {
+            const staff = data.allStaff.find((s) => s.id === sh.staffId);
+            if (staff) { alerts.push({ name: staff.name, msg: "ヘルプ未反映(2部)" }); alerted.add(sh.staffId + ":2"); }
+          }
+        }
+      });
+    });
+
     return alerts;
   }, [data, currentStaff, currentDays]);
 }

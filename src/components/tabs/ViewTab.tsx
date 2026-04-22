@@ -90,10 +90,14 @@ export default function ViewTab({
           const isConfirmed = confirmedDates.has(date);
 
           const shifts = dayData.shifts
-            .filter((sh) => sh.inTime && currentStaff.some((s) => s.id === sh.staffId))
+            .filter((sh) => {
+              if (!sh.inTime) return false;
+              if (sh.storeId && sh.storeId !== data.selectedStoreId) return false;
+              return data.allStaff.some((s) => s.id === sh.staffId);
+            })
             .sort((a, b) => {
-              const sA = currentStaff.find((s) => s.id === a.staffId);
-              const sB = currentStaff.find((s) => s.id === b.staffId);
+              const sA = data.allStaff.find((s) => s.id === a.staffId);
+              const sB = data.allStaff.find((s) => s.id === b.staffId);
               if (a.isHelp !== b.isHelp) return a.isHelp ? 1 : -1;
               if (sA?.type !== sB?.type) return sA?.type === "社員" ? -1 : 1;
               return a.inTime.localeCompare(b.inTime);
@@ -153,8 +157,9 @@ export default function ViewTab({
                   {/* Shift rows */}
                   <div className="space-y-1">
                     {shifts.map((sh) => {
-                      const staff = currentStaff.find((s) => s.id === sh.staffId);
+                      const staff = data.allStaff.find((s) => s.id === sh.staffId);
                       const isSeishain = staff?.type === "社員";
+                      const isHelpReceived = !!staff && staff.storeId !== data.selectedStoreId && !sh.isHelp;
 
                       const helpStore1 = sh.helpStoreId ? data.stores.find((s) => s.id === sh.helpStoreId) : undefined;
                       const helpStore2 = sh.helpStoreId2 ? data.stores.find((s) => s.id === sh.helpStoreId2) : undefined;
@@ -167,6 +172,8 @@ export default function ViewTab({
 
                       const badgeCls = sh.isHelp
                         ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                        : isHelpReceived
+                        ? "bg-teal-100 text-teal-700 border-teal-200"
                         : isSeishain
                         ? "bg-blue-100 text-blue-700 border-blue-200"
                         : "bg-amber-50 text-amber-700 border-amber-200";
@@ -197,7 +204,7 @@ export default function ViewTab({
                           {/* Staff label */}
                           <div className="w-28 shrink-0 flex items-center gap-1 overflow-hidden">
                             <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
-                              {sh.isHelp ? "HELP" : isSeishain ? "社員" : "AP"}
+                              {sh.isHelp ? "HELP" : isHelpReceived ? "H受" : isSeishain ? "社員" : "AP"}
                             </span>
                             <span className="text-[10px] font-bold text-slate-700 truncate">
                               {staff?.name ?? "—"}

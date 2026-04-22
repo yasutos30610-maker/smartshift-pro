@@ -1,7 +1,19 @@
-import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, CheckCheck, AlertCircle, CheckCircle } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { RefreshCw, CheckCheck, AlertCircle, CheckCircle, Users } from "lucide-react";
 import type { AppData, Staff, UpdateDataFn, ShiftRequest } from "../../types";
 import { fetchRequests, updateRequestStatus } from "../../lib/requests";
+import { formatDate } from "../../utils/date";
+
+interface HelpEntry {
+  date: string;
+  staffId: string;
+  staffName: string;
+  fromStoreName: string;
+  inTime: string;
+  outTime: string;
+  breakMinutes: number;
+  period: 1 | 2;
+}
 
 interface ImportTabProps {
   data: AppData;
@@ -89,6 +101,62 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
   const reflectedCount = Array.from(latestByStaff.values()).filter((r) => r.status === "reflected").length;
   const unsubmittedCount = currentStaff.length - submittedCount;
   const currentStore = data.stores.find((s) => s.id === data.selectedStoreId);
+
+  // 他店からの未反映ヘルプ一覧
+  const incomingHelp = useMemo<HelpEntry[]>(() => {
+    const sid = data.selectedStoreId;
+    const entries: HelpEntry[] = [];
+    Object.entries(data.dailyDataRecord).forEach(([date, dayData]) => {
+      dayData.shifts.forEach((sh) => {
+        if (sh.isHelp && sh.helpStoreId === sid) {
+          const already = dayData.shifts.some(
+            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime
+          );
+          if (!already) {
+            const staff = data.allStaff.find((s) => s.id === sh.staffId);
+            const fromStore = data.stores.find((s) => s.id === sh.storeId);
+            if (staff) entries.push({ date, staffId: sh.staffId, staffName: staff.name, fromStoreName: fromStore?.name ?? "他店", inTime: sh.inTime, outTime: sh.outTime, breakMinutes: sh.breakMinutes || 0, period: 1 });
+          }
+        }
+        if (sh.isHelp2 && sh.helpStoreId2 === sid && sh.inTime2 && sh.outTime2) {
+          const already = dayData.shifts.some(
+            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime2
+          );
+          if (!already) {
+            const staff = data.allStaff.find((s) => s.id === sh.staffId);
+            const fromStore = data.stores.find((s) => s.id === sh.storeId);
+            if (staff) entries.push({ date, staffId: sh.staffId, staffName: staff.name, fromStoreName: fromStore?.name ?? "他店", inTime: sh.inTime2!, outTime: sh.outTime2!, breakMinutes: sh.breakMinutes2 || 0, period: 2 });
+          }
+        }
+      });
+    });
+    return entries.sort((a, b) => a.date.localeCompare(b.date));
+  }, [data]);
+
+  const importHelp = (entry: HelpEntry) => {
+    updateData((d) => {
+      const dayData = d.dailyDataRecord[entry.date];
+      if (!dayData) return d;
+      const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false };
+      return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] } } };
+    });
+  };
+
+  const importAllHelp = () => {
+    updateData((d) => {
+      let next = { ...d, dailyDataRecord: { ...d.dailyDataRecord } };
+      incomingHelp.forEach((entry) => {
+        const dayData = next.dailyDataRecord[entry.date];
+        if (!dayData) return;
+        const already = dayData.shifts.some((s) => s.storeId === d.selectedStoreId && s.staffId === entry.staffId && s.inTime === entry.inTime);
+        if (!already) {
+          const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false };
+          next = { ...next, dailyDataRecord: { ...next.dailyDataRecord, [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] } } };
+        }
+      });
+      return next;
+    });
+  };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -274,6 +342,70 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ヘルプ取込セクション */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mt-4">
+        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users size={13} className="text-teal-500" />
+            <span className="text-xs font-bold text-slate-600">ヘルプ取込</span>
+            {incomingHelp.length > 0 && (
+              <span className="text-[10px] font-black bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full border border-teal-200">
+                {incomingHelp.length}件
+              </span>
+            )}
+          </div>
+          {incomingHelp.length > 0 && (
+            <button
+              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-teal-500 text-white text-xs font-black shadow hover:bg-teal-600 transition-all"
+              onClick={importAllHelp}
+            >
+              <CheckCheck size={11} /> 全て取込
+            </button>
+          )}
+        </div>
+
+        {incomingHelp.length === 0 ? (
+          <div className="py-8 text-center text-slate-300 text-xs font-bold">
+            未取込のヘルプシフトはありません
+          </div>
+        ) : (
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-100">
+                {["日付", "スタッフ", "部", "時間", "元店舗", ""].map((h) => (
+                  <th key={h} className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {incomingHelp.map((entry, i) => (
+                <tr key={i} className="border-b border-slate-100 hover:bg-teal-50/30 transition-colors">
+                  <td className="px-4 py-2.5 text-xs font-bold text-slate-700 whitespace-nowrap">{formatDate(entry.date)}</td>
+                  <td className="px-4 py-2.5 text-xs font-bold text-slate-800">{entry.staffName}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <span className="text-[10px] font-black text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                      {entry.period}部
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-mono text-slate-700 whitespace-nowrap">
+                    {entry.inTime}–{entry.outTime}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500">{entry.fromStoreName}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      className="flex items-center gap-1 px-3 py-1 rounded-lg bg-teal-500 text-white text-xs font-black shadow hover:bg-teal-600 transition-all ml-auto"
+                      onClick={() => importHelp(entry)}
+                    >
+                      <CheckCheck size={11} /> 取込
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

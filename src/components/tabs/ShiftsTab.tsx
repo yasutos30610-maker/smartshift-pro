@@ -101,8 +101,7 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
           const ratio = day.salesBudget > 0 ? (dayCost / day.salesBudget) * 100 : 0;
           const storeShifts = day.shifts.filter((sh) => {
             if (sh.storeId && sh.storeId !== data.selectedStoreId) return false;
-            const staff = currentStaff.find((st) => st.id === sh.staffId);
-            return !sh.staffId || staff;
+            return !sh.staffId || data.allStaff.some((st) => st.id === sh.staffId);
           });
           const isWeekend = dow === 0 || dow === 6;
           const isConfirmed = confirmedDates.has(date);
@@ -163,9 +162,10 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                     </thead>
                     <tbody>
                       {day.shifts.map((shift, idx) => {
-                        const staff = currentStaff.find((s) => s.id === shift.staffId);
+                        const staff = data.allStaff.find((s) => s.id === shift.staffId);
                         if (shift.storeId && shift.storeId !== data.selectedStoreId) return null;
                         if (shift.staffId && !staff) return null;
+                        const isHelpReceived = !!staff && staff.storeId !== data.selectedStoreId;
 
                         const net1 = !shift.isHelp && shift.inTime && shift.outTime
                           ? Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0))
@@ -193,6 +193,9 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                                 {currentStaff.map((s) => (
                                   <option key={s.id} value={s.id} disabled={alreadySelected.includes(s.id)}>{s.name}</option>
                                 ))}
+                                {isHelpReceived && staff && (
+                                  <option value={staff.id}>{staff.name}(ヘルプ)</option>
+                                )}
                               </select>
                             </td>
 
