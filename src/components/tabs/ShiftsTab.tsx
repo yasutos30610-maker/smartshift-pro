@@ -1,10 +1,10 @@
-import { Plus, Trash2, CheckCircle, Circle } from "lucide-react";
+import { Fragment } from "react";
+import { Plus, Trash2, CheckCircle, Circle, GitBranch } from "lucide-react";
 import NumberInput from "../ui/NumberInput";
-import type { AppData, Staff, DayInfo, UpdateDataFn } from "../../types";
+import type { AppData, Staff, DayInfo, Shift, UpdateDataFn } from "../../types";
 import { formatDate } from "../../utils/date";
 import { calcMinutes, calcDailyCost } from "../../utils/calc";
 
-// ─── Enter で次の入力欄へ ────────────────────────────────────────────────────
 function focusNext(e: React.KeyboardEvent<HTMLInputElement>) {
   if (e.key !== "Enter") return;
   e.preventDefault();
@@ -14,7 +14,6 @@ function focusNext(e: React.KeyboardEvent<HTMLInputElement>) {
   const idx = all.indexOf(e.currentTarget);
   if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
 }
-
 
 interface ShiftsTabProps {
   data: AppData;
@@ -30,14 +29,12 @@ interface ShiftsTabProps {
 export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentStaff, offDays, targetRatio, updateData }: ShiftsTabProps) {
   const confirmedDates = new Set(data.confirmedDates ?? []);
 
-  const toggleConfirm = (date: string) => {
+  const toggleConfirm = (date: string) =>
     updateData((d) => {
       const cur = new Set(d.confirmedDates ?? []);
-      if (cur.has(date)) cur.delete(date);
-      else cur.add(date);
+      if (cur.has(date)) cur.delete(date); else cur.add(date);
       return { ...d, confirmedDates: Array.from(cur) };
     });
-  };
 
   const confirmAllWeek = () => {
     const week = weeks[weekIdx] ?? [];
@@ -48,8 +45,15 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
     });
   };
 
+  const updateShift = (date: string, idx: number, patch: Partial<Shift>) =>
+    updateData((d) => {
+      const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, ...patch } : s);
+      return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
+    });
+
   const week = weeks[weekIdx] ?? [];
   const weekAllConfirmed = week.length > 0 && week.every((d) => confirmedDates.has(d.date));
+  const otherStores = data.stores.filter((s) => s.id !== data.selectedStoreId);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -124,7 +128,6 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {/* 確定ボタン */}
                   <button
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black border transition-all ${
                       isConfirmed
@@ -154,7 +157,7 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
-                        {["#", "名前", "希望", "IN", "OUT", "休憩(分)", "ヘルプ", "実働", "人件費", ""].map((h) => (
+                        {["#", "名前", "希望", "IN1", "OUT1", "休憩1", "ヘルプ1", "IN2", "OUT2", "休憩2", "ヘルプ2", "実働", "人件費", ""].map((h) => (
                           <th key={h} className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -164,91 +167,193 @@ export default function ShiftsTab({ data, weeks, weekIdx, setWeekIdx, currentSta
                         const staff = currentStaff.find((s) => s.id === shift.staffId);
                         if (shift.storeId && shift.storeId !== data.selectedStoreId) return null;
                         if (shift.staffId && !staff) return null;
-                        const net = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+
+                        const net1 = !shift.isHelp && shift.inTime && shift.outTime
+                          ? Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0))
+                          : 0;
+                        const net2 = !shift.isHelp2 && shift.inTime2 && shift.outTime2
+                          ? Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0))
+                          : 0;
+                        const totalNet = net1 + net2;
                         const cost = staff ? calcDailyCost(shift, staff, offDays, date) : 0;
+                        const hasP2 = !!shift.inTime2;
                         const alreadySelected = day.shifts.map((s) => s.staffId).filter((id) => id && id !== shift.staffId);
+
                         return (
-                          <tr key={idx} className="border-b border-slate-100 hover:bg-amber-50/20 transition-colors">
-                            <td className="px-3 py-1.5 text-slate-300 font-bold text-xs text-center w-8">{idx + 1}</td>
-                            <td className="px-3 py-1.5">
-                              <select
-                                className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 min-w-[100px]"
-                                value={shift.staffId}
-                                onChange={(e) => updateData((d) => {
-                                  const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, staffId: e.target.value } : s);
-                                  return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
-                                })}
-                              >
-                                <option value="">選択</option>
-                                {currentStaff.map((s) => (
-                                  <option key={s.id} value={s.id} disabled={alreadySelected.includes(s.id)}>{s.name}</option>
-                                ))}
-                              </select>
-                            </td>
-                            {/* 希望IN/OUT */}
-                            <td className="px-3 py-1.5">
-                              {shift.requestedInTime ? (
-                                <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 whitespace-nowrap leading-tight">
-                                  <div className="text-[9px] text-blue-400 font-bold mb-0.5">希望</div>
-                                  {shift.requestedInTime}–{shift.requestedOutTime}
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-slate-300">—</span>
-                              )}
-                            </td>
-                            {(["inTime", "outTime"] as const).map((field) => (
-                              <td key={field} className="px-3 py-1.5">
-                                <input
-                                  type="time"
-                                  className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 w-22"
-                                  value={shift[field]}
-                                  onKeyDown={focusNext}
-                                  onChange={(e) => updateData((d) => {
-                                    const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, [field]: e.target.value } : s);
-                                    return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
-                                  })}
+                          <Fragment key={idx}>
+                            {/* Period 1 row */}
+                            <tr className={`border-b ${hasP2 ? "border-blue-100" : "border-slate-100"} hover:bg-amber-50/20 transition-colors`}>
+                              <td className="px-3 py-1.5 text-slate-300 font-bold text-xs text-center w-8">{idx + 1}</td>
+                              <td className="px-3 py-1.5">
+                                <select
+                                  className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 min-w-[100px]"
+                                  value={shift.staffId}
+                                  onChange={(e) => updateShift(date, idx, { staffId: e.target.value })}
+                                >
+                                  <option value="">選択</option>
+                                  {currentStaff.map((s) => (
+                                    <option key={s.id} value={s.id} disabled={alreadySelected.includes(s.id)}>{s.name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              {/* 希望IN/OUT */}
+                              <td className="px-3 py-1.5">
+                                {shift.requestedInTime ? (
+                                  <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 whitespace-nowrap leading-tight">
+                                    <div className="text-[9px] text-blue-400 font-bold mb-0.5">希望</div>
+                                    {shift.requestedInTime}–{shift.requestedOutTime}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-300">—</span>
+                                )}
+                              </td>
+                              {/* IN1 / OUT1 */}
+                              {(["inTime", "outTime"] as const).map((field) => (
+                                <td key={field} className="px-3 py-1.5">
+                                  <input
+                                    type="time"
+                                    className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 w-22"
+                                    value={shift[field]}
+                                    onKeyDown={focusNext}
+                                    onChange={(e) => updateShift(date, idx, { [field]: e.target.value })}
+                                  />
+                                </td>
+                              ))}
+                              {/* 休憩1 */}
+                              <td className="px-3 py-1.5">
+                                <NumberInput
+                                  className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 w-14 text-right"
+                                  value={shift.breakMinutes}
+                                  onChange={(val) => updateShift(date, idx, { breakMinutes: val })}
                                 />
                               </td>
-                            ))}
-                            <td className="px-3 py-1.5">
-                              <NumberInput
-                                className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-amber-500 w-14 text-right"
-                                value={shift.breakMinutes}
-                                onChange={(val) => updateData((d) => {
-                                  const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, breakMinutes: val } : s);
-                                  return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
-                                })}
-                              />
-                            </td>
-                            <td className="px-3 py-1.5 text-center">
-                              <input
-                                type="checkbox"
-                                checked={shift.isHelp || false}
-                                onChange={(e) => updateData((d) => {
-                                  const shifts = d.dailyDataRecord[date].shifts.map((s, i) => i === idx ? { ...s, isHelp: e.target.checked } : s);
-                                  return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
-                                })}
-                                className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500/20"
-                              />
-                            </td>
-                            <td className="px-3 py-1.5 text-right font-mono text-slate-500 text-xs whitespace-nowrap">
-                              {Math.floor(net / 60)}h{net % 60}m
-                            </td>
-                            <td className="px-3 py-1.5 text-right font-black text-slate-900 text-xs whitespace-nowrap">
-                              ¥{Math.round(cost).toLocaleString()}
-                            </td>
-                            <td className="px-3 py-1.5 text-center">
-                              <button
-                                className="text-slate-300 hover:text-rose-500 transition-colors"
-                                onClick={() => updateData((d) => {
-                                  const shifts = d.dailyDataRecord[date].shifts.filter((_, i) => i !== idx);
-                                  return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
-                                })}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
-                          </tr>
+                              {/* ヘルプ1 */}
+                              <td className="px-3 py-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={shift.isHelp || false}
+                                    onChange={(e) => updateShift(date, idx, { isHelp: e.target.checked, helpStoreId: e.target.checked ? shift.helpStoreId : undefined })}
+                                    className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500/20 shrink-0"
+                                  />
+                                  {shift.isHelp && otherStores.length > 0 && (
+                                    <select
+                                      className="bg-white border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-700 outline-none focus:border-amber-500 min-w-[90px]"
+                                      value={shift.helpStoreId || ""}
+                                      onChange={(e) => updateShift(date, idx, { helpStoreId: e.target.value || undefined })}
+                                    >
+                                      <option value="">店舗選択</option>
+                                      {otherStores.map((s) => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              </td>
+                              {/* IN2 / OUT2 / 休憩2 / ヘルプ2 (empty in P1 row when P2 exists) */}
+                              <td className="px-3 py-1.5" />
+                              <td className="px-3 py-1.5" />
+                              <td className="px-3 py-1.5" />
+                              <td className="px-3 py-1.5" />
+                              {/* 実働・人件費 */}
+                              <td className="px-3 py-1.5 text-right font-mono text-slate-500 text-xs whitespace-nowrap">
+                                {Math.floor(totalNet / 60)}h{totalNet % 60}m
+                              </td>
+                              <td className="px-3 py-1.5 text-right font-black text-slate-900 text-xs whitespace-nowrap">
+                                ¥{Math.round(cost).toLocaleString()}
+                              </td>
+                              {/* 操作 */}
+                              <td className="px-3 py-1.5">
+                                <div className="flex items-center gap-1 justify-center">
+                                  {!hasP2 && (
+                                    <button
+                                      className="text-blue-300 hover:text-blue-500 transition-colors"
+                                      title="2部を追加"
+                                      onClick={() => updateShift(date, idx, { inTime2: "13:00", outTime2: "18:00", breakMinutes2: 0, isHelp2: false })}
+                                    >
+                                      <GitBranch size={14} />
+                                    </button>
+                                  )}
+                                  <button
+                                    className="text-slate-300 hover:text-rose-500 transition-colors"
+                                    onClick={() => updateData((d) => {
+                                      const shifts = d.dailyDataRecord[date].shifts.filter((_, i) => i !== idx);
+                                      return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [date]: { ...d.dailyDataRecord[date], shifts } } };
+                                    })}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* Period 2 sub-row */}
+                            {hasP2 && (
+                              <tr className="border-b border-slate-100 bg-blue-50/20">
+                                <td className="px-3 py-1.5" />
+                                <td className="px-3 py-1.5" />
+                                <td className="px-3 py-1.5">
+                                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">2部</span>
+                                </td>
+                                {/* IN2 / OUT2 */}
+                                {(["inTime2", "outTime2"] as const).map((field) => (
+                                  <td key={field} className="px-3 py-1.5">
+                                    <input
+                                      type="time"
+                                      className="bg-white border border-blue-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-500 w-22"
+                                      value={shift[field] ?? ""}
+                                      onKeyDown={focusNext}
+                                      onChange={(e) => updateShift(date, idx, { [field]: e.target.value })}
+                                    />
+                                  </td>
+                                ))}
+                                {/* 休憩2 */}
+                                <td className="px-3 py-1.5">
+                                  <NumberInput
+                                    className="bg-white border border-blue-200 rounded px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-500 w-14 text-right"
+                                    value={shift.breakMinutes2 ?? 0}
+                                    onChange={(val) => updateShift(date, idx, { breakMinutes2: val })}
+                                  />
+                                </td>
+                                {/* ヘルプ2 */}
+                                <td className="px-3 py-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <input
+                                      type="checkbox"
+                                      checked={shift.isHelp2 || false}
+                                      onChange={(e) => updateShift(date, idx, { isHelp2: e.target.checked, helpStoreId2: e.target.checked ? shift.helpStoreId2 : undefined })}
+                                      className="w-4 h-4 rounded border-blue-300 text-blue-500 focus:ring-blue-500/20 shrink-0"
+                                    />
+                                    {shift.isHelp2 && otherStores.length > 0 && (
+                                      <select
+                                        className="bg-white border border-blue-200 rounded px-2 py-1 text-[10px] text-slate-700 outline-none focus:border-blue-500 min-w-[90px]"
+                                        value={shift.helpStoreId2 || ""}
+                                        onChange={(e) => updateShift(date, idx, { helpStoreId2: e.target.value || undefined })}
+                                      >
+                                        <option value="">店舗選択</option>
+                                        {otherStores.map((s) => (
+                                          <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                  </div>
+                                </td>
+                                {/* 実働・人件費 (空) */}
+                                <td className="px-3 py-1.5" />
+                                <td className="px-3 py-1.5" />
+                                {/* 2部削除 */}
+                                <td className="px-3 py-1.5 text-center">
+                                  <button
+                                    className="text-blue-200 hover:text-rose-500 transition-colors"
+                                    title="2部を削除"
+                                    onClick={() => updateShift(date, idx, { inTime2: undefined, outTime2: undefined, breakMinutes2: undefined, isHelp2: undefined, helpStoreId2: undefined })}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>

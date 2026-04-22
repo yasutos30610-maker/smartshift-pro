@@ -50,10 +50,19 @@ export interface Store {
 export interface Shift {
   storeId?: string;
   staffId: string;
+  // Period 1
   inTime: string;
   outTime: string;
   breakMinutes: number;
   isHelp: boolean;
+  helpStoreId?: string;
+  // Period 2 (optional split shift)
+  inTime2?: string;
+  outTime2?: string;
+  breakMinutes2?: number;
+  isHelp2?: boolean;
+  helpStoreId2?: string;
+  // Request
   requestedInTime?: string;
   requestedOutTime?: string;
 }

@@ -30,10 +30,9 @@ export function calcDailyCost(
   monthlyOffDays = 9,
   dateStr: string
 ): number {
-  if (!shift.inTime || !shift.outTime || shift.isHelp) return 0;
-  const total = calcMinutes(shift.inTime, shift.outTime);
-  const net = Math.max(0, total - (shift.breakMinutes || 0));
-  const midnight = calcMidnightMinutes(shift.inTime, shift.outTime);
+  const p1 = !shift.isHelp && !!shift.inTime && !!shift.outTime;
+  const p2 = !shift.isHelp2 && !!shift.inTime2 && !!shift.outTime2;
+  if (!p1 && !p2) return 0;
 
   let hourlyAdd = 0;
   let dailyAdd = 0;
@@ -51,12 +50,21 @@ export function calcDailyCost(
 
   if (staff.type === "AP") {
     const rate = staff.hourlyRate + hourlyAdd;
-    const base = (net / 60) * rate;
-    const ot = Math.max(0, net - 480);
+    let totalNet = 0;
+    let totalMidnight = 0;
+    if (p1) {
+      totalNet += Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+      totalMidnight += calcMidnightMinutes(shift.inTime, shift.outTime);
+    }
+    if (p2) {
+      totalNet += Math.max(0, calcMinutes(shift.inTime2!, shift.outTime2!) - (shift.breakMinutes2 || 0));
+      totalMidnight += calcMidnightMinutes(shift.inTime2!, shift.outTime2!);
+    }
+    const base = (totalNet / 60) * rate;
+    const ot = Math.max(0, totalNet - 480);
     const otExtra = (ot / 60) * rate * 0.25;
-    const midExtra = (midnight / 60) * rate * 0.25;
-    const transport = staff.dailyTransport ?? 0;
-    return base + otExtra + midExtra + dailyAdd + transport;
+    const midExtra = (totalMidnight / 60) * rate * 0.25;
+    return base + otExtra + midExtra + dailyAdd + (staff.dailyTransport ?? 0);
   } else {
     if (!dateStr) return 0;
     const [y, mo] = dateStr.split("-").map(Number);
@@ -64,7 +72,10 @@ export function calcDailyCost(
     const workingDays = Math.max(1, daysInMo - monthlyOffDays);
     const dailyBase = staff.monthlySalary / workingDays;
     const hrRate = staff.monthlySalary / 173;
-    const midExtra = (midnight / 60) * hrRate * 0.25;
+    let totalMidnight = 0;
+    if (p1) totalMidnight += calcMidnightMinutes(shift.inTime, shift.outTime);
+    if (p2) totalMidnight += calcMidnightMinutes(shift.inTime2!, shift.outTime2!);
+    const midExtra = (totalMidnight / 60) * hrRate * 0.25;
     const transportDaily = (staff.monthlyTransport ?? 0) / workingDays;
     return dailyBase + midExtra + dailyAdd + transportDaily;
   }
