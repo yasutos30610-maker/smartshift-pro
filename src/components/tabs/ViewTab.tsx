@@ -154,30 +154,50 @@ export default function ViewTab({
                   <div className="space-y-1">
                     {shifts.map((sh) => {
                       const staff = currentStaff.find((s) => s.id === sh.staffId);
-                      const left = timeToPercent(sh.inTime);
-                      const right = timeToPercent(sh.outTime);
-                      const width = Math.max(0, right - left);
-                      const isHelp = sh.isHelp;
                       const isSeishain = staff?.type === "社員";
 
-                      const badgeCls = isHelp
+                      const helpStore1 = sh.helpStoreId ? data.stores.find((s) => s.id === sh.helpStoreId) : undefined;
+                      const helpStore2 = sh.helpStoreId2 ? data.stores.find((s) => s.id === sh.helpStoreId2) : undefined;
+
+                      const left1 = timeToPercent(sh.inTime);
+                      const width1 = Math.max(0, timeToPercent(sh.outTime) - left1);
+                      const hasP2 = !!sh.inTime2 && !!sh.outTime2;
+                      const left2 = hasP2 ? timeToPercent(sh.inTime2!) : 0;
+                      const width2 = hasP2 ? Math.max(0, timeToPercent(sh.outTime2!) - left2) : 0;
+
+                      const badgeCls = sh.isHelp
                         ? "bg-emerald-100 text-emerald-700 border-emerald-200"
                         : isSeishain
                         ? "bg-blue-100 text-blue-700 border-blue-200"
                         : "bg-amber-50 text-amber-700 border-amber-200";
 
-                      const barCls = isHelp
+                      const barCls1 = sh.isHelp
                         ? "bg-emerald-100 border-emerald-300 text-emerald-800"
                         : isSeishain
                         ? "bg-blue-100 border-blue-300 text-blue-800"
                         : "bg-amber-100 border-amber-300 text-amber-800";
+
+                      const barCls2 = sh.isHelp2
+                        ? "bg-teal-100 border-teal-300 text-teal-800"
+                        : isSeishain
+                        ? "bg-blue-50 border-blue-200 text-blue-700"
+                        : "bg-amber-50 border-amber-200 text-amber-700";
+
+                      const label1 = sh.isHelp
+                        ? `${sh.inTime}–${sh.outTime} ${helpStore1?.name ?? "他店"}ヘルプ`
+                        : `${sh.inTime}–${sh.outTime}`;
+                      const label2 = hasP2
+                        ? (sh.isHelp2
+                            ? `${sh.inTime2}–${sh.outTime2} ${helpStore2?.name ?? "他店"}ヘルプ`
+                            : `${sh.inTime2}–${sh.outTime2}`)
+                        : "";
 
                       return (
                         <div key={sh.staffId} className="flex items-center gap-2 h-6">
                           {/* Staff label */}
                           <div className="w-28 shrink-0 flex items-center gap-1 overflow-hidden">
                             <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
-                              {isHelp ? "HELP" : isSeishain ? "社員" : "AP"}
+                              {sh.isHelp ? "HELP" : isSeishain ? "社員" : "AP"}
                             </span>
                             <span className="text-[10px] font-bold text-slate-700 truncate">
                               {staff?.name ?? "—"}
@@ -192,13 +212,22 @@ export default function ViewTab({
                                 <div key={i} className="flex-1 border-l border-slate-100" />
                               ))}
                             </div>
-                            {/* Shift bar */}
+                            {/* P1 bar */}
                             <div
-                              className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls}`}
-                              style={{ left: `${left}%`, width: `${width}%` }}
+                              className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls1}`}
+                              style={{ left: `${left1}%`, width: `${width1}%` }}
                             >
-                              <span className="whitespace-nowrap">{sh.inTime}–{sh.outTime}</span>
+                              <span className="whitespace-nowrap">{label1}</span>
                             </div>
+                            {/* P2 bar */}
+                            {hasP2 && (
+                              <div
+                                className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls2}`}
+                                style={{ left: `${left2}%`, width: `${width2}%` }}
+                              >
+                                <span className="whitespace-nowrap">{label2}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

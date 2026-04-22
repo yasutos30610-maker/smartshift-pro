@@ -126,22 +126,19 @@ export default function PrintTab({
                       const dayData = data.dailyDataRecord[d.date];
                       const shift = dayData?.shifts.find((s) => s.staffId === staff.id);
                       if (shift?.inTime) {
-                        const net = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
-                        weeklyMins += net;
+                        const net1 = !shift.isHelp ? Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0)) : 0;
+                        const net2 = (!shift.isHelp2 && shift.inTime2 && shift.outTime2)
+                          ? Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0))
+                          : 0;
+                        weeklyMins += net1 + net2;
                         return (
                           <td key={d.date} className="px-1 py-1.5 text-center align-middle">
-                            <div className="text-[10px] font-black text-slate-800 leading-snug">
-                              {shift.inTime}
+                            <div className={`text-[10px] font-black leading-snug ${shift.isHelp ? "text-emerald-700" : "text-slate-800"}`}>
+                              {shift.inTime}–{shift.outTime}{shift.isHelp ? " H" : ""}
                             </div>
-                            <div className="text-[9px] text-slate-300 leading-none">↓</div>
-                            <div className="text-[10px] font-black text-slate-800 leading-snug">
-                              {shift.outTime}
-                            </div>
-                            {shift.isHelp && (
-                              <div className="mt-0.5">
-                                <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">
-                                  HELP
-                                </span>
+                            {shift.inTime2 && shift.outTime2 && (
+                              <div className={`text-[10px] font-black leading-snug mt-0.5 ${shift.isHelp2 ? "text-teal-600" : "text-blue-600"}`}>
+                                {shift.inTime2}–{shift.outTime2}{shift.isHelp2 ? " H" : ""}
                               </div>
                             )}
                           </td>

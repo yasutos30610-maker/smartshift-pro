@@ -64,24 +64,28 @@ export default function WeeklyPrintGrid({ week, weekNumber, currentStaff, data, 
                   const dayData = data.dailyDataRecord[d.date];
                   const shift = dayData?.shifts.find((s) => s.staffId === staff.id);
                   if (shift?.inTime) {
-                    const net = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+                    const net1 = !shift.isHelp ? Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0)) : 0;
+                    const net2 = (!shift.isHelp2 && shift.inTime2 && shift.outTime2)
+                      ? Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0))
+                      : 0;
+                    const net = net1 + net2;
                     weeklyTotal += net;
                     return (
                       <td key={d.date} className="border border-slate-300 p-1 text-center">
-                        <div className="text-[10px] font-black text-slate-900 leading-tight">
-                          {shift.inTime}
-                          <br />
-                          <span className="text-slate-400">—</span>
-                          <br />
-                          {shift.outTime}
-                          <br />
-                          <span className="text-[8px] text-blue-600">{(net / 60).toFixed(1)}h</span>
-                          {shift.isHelp && (
+                        <div className="text-[10px] font-black leading-tight">
+                          <span className={shift.isHelp ? "text-emerald-700" : "text-slate-900"}>
+                            {shift.inTime}–{shift.outTime}{shift.isHelp ? " H" : ""}
+                          </span>
+                          {shift.inTime2 && shift.outTime2 && (
                             <>
                               <br />
-                              <span className="text-[8px] font-black bg-emerald-600 text-white px-1 rounded">HELP</span>
+                              <span className={shift.isHelp2 ? "text-teal-600" : "text-blue-600"}>
+                                {shift.inTime2}–{shift.outTime2}{shift.isHelp2 ? " H" : ""}
+                              </span>
                             </>
                           )}
+                          <br />
+                          <span className="text-[8px] text-blue-600">{(net / 60).toFixed(1)}h</span>
                         </div>
                       </td>
                     );
