@@ -28,7 +28,8 @@ export function useAlerts(data: AppData, currentStaff: Staff[], currentDays: Day
     });
 
     // ヘルプ未反映チェック
-    const sid = data.selectedStoreId;
+    const sid = data?.selectedStoreId;
+    if (!sid) return alerts;
     const alerted = new Set<string>();
     Object.values(data.dailyDataRecord).forEach((dayData) => {
       dayData.shifts.forEach((sh) => {
