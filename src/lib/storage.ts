@@ -163,11 +163,13 @@ async function _fetchById(storeId: string, year: number, month: number): Promise
 }
 
 // 他店データをSupabaseのみに保存（localStorageは触らない）
-export async function saveOtherStoreData(data: AppData): Promise<void> {
+// fromStoreId を明示指定してrowキーを確定させる（payloadのselectedStoreIdに依存しない）
+export async function saveOtherStoreData(data: AppData, fromStoreId: string): Promise<void> {
   try {
+    const id = `${fromStoreId}_${data.year}_${data.month}`;
     await supabase.from("shift_data").upsert({
-      id: rowId(data),
-      store_id: data.selectedStoreId,
+      id,
+      store_id: fromStoreId,
       year: data.year,
       month: data.month,
       payload: data,

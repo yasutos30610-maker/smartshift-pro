@@ -194,7 +194,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
       setOtherStoresData((prev) =>
         prev.map((d) => (d.selectedStoreId === entry.fromStoreId ? updated : d))
       );
-      await saveOtherStoreData(updated);
+      await saveOtherStoreData(updated, entry.fromStoreId);
     }
   };
 
@@ -229,7 +229,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
       setOtherStoresData((prev) =>
         prev.map((d) => (d.selectedStoreId === entry.fromStoreId ? updated : d))
       );
-      await saveOtherStoreData(updated);
+      await saveOtherStoreData(updated, entry.fromStoreId);
     }
   };
 
@@ -275,11 +275,11 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
       }
     }
     const savePromises: Promise<void>[] = [];
-    updatedSourceMap.forEach((updated) => {
+    updatedSourceMap.forEach((updated, fromStoreId) => {
       setOtherStoresData((prev) =>
-        prev.map((d) => (d.selectedStoreId === updated.selectedStoreId ? updated : d))
+        prev.map((d) => (d.selectedStoreId === fromStoreId ? updated : d))
       );
-      savePromises.push(saveOtherStoreData(updated));
+      savePromises.push(saveOtherStoreData(updated, fromStoreId));
     });
     await Promise.all(savePromises);
   };
