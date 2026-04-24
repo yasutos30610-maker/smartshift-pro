@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { RefreshCw, CheckCheck, AlertCircle, CheckCircle, Users } from "lucide-react";
-import type { AppData, Staff, UpdateDataFn, ShiftRequest } from "../../types";
+import type { AppData, Staff, Shift, UpdateDataFn, ShiftRequest } from "../../types";
 import { fetchRequests, updateRequestStatus } from "../../lib/requests";
+import { syncFromSupabase, saveOtherStoreData } from "../../lib/storage";
 import { formatDate } from "../../utils/date";
 
 interface HelpEntry {
   date: string;
   staffId: string;
   staffName: string;
+  fromStoreId: string;
   fromStoreName: string;
   inTime: string;
   outTime: string;
@@ -21,17 +23,42 @@ interface ImportTabProps {
   updateData: UpdateDataFn;
 }
 
+// 元店舗のシフトに helpAccepted フラグを立てる
+function markHelpAccepted(sourceData: AppData, entry: HelpEntry): AppData {
+  const dayData = sourceData.dailyDataRecord[entry.date];
+  if (!dayData) return sourceData;
+  const shifts = dayData.shifts.map((sh: Shift) => {
+    if (sh.staffId !== entry.staffId) return sh;
+    if (entry.period === 1 && sh.inTime === entry.inTime) return { ...sh, helpAccepted: true };
+    if (entry.period === 2 && sh.inTime2 === entry.inTime) return { ...sh, helpAccepted2: true };
+    return sh;
+  });
+  return {
+    ...sourceData,
+    dailyDataRecord: {
+      ...sourceData.dailyDataRecord,
+      [entry.date]: { ...dayData, shifts },
+    },
+  };
+}
+
 export default function ImportTab({ data, currentStaff, updateData }: ImportTabProps) {
   const [requests, setRequests] = useState<ShiftRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [reflecting, setReflecting] = useState<Set<string>>(new Set());
+  const [otherStoresData, setOtherStoresData] = useState<AppData[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const list = await fetchRequests(data.selectedStoreId, data.year, data.month);
+    const otherStores = data.stores.filter((s) => s.id !== data.selectedStoreId);
+    const [list, ...otherResults] = await Promise.all([
+      fetchRequests(data.selectedStoreId, data.year, data.month),
+      ...otherStores.map((s) => syncFromSupabase(s.id, data.year, data.month)),
+    ]);
     setRequests(list);
+    setOtherStoresData(otherResults.filter((d): d is AppData => d !== null));
     setLoading(false);
-  }, [data.selectedStoreId, data.year, data.month]);
+  }, [data.selectedStoreId, data.year, data.month, data.stores]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -46,7 +73,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
 
   const reflectRequest = async (req: ShiftRequest) => {
     setReflecting((prev) => new Set(prev).add(req.id));
-
     updateData((d) => {
       let next = { ...d, dailyDataRecord: { ...d.dailyDataRecord } };
       req.shifts.forEach((rs) => {
@@ -77,7 +103,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
       });
       return next;
     });
-
     await updateRequestStatus(req.id, "reflected");
     setRequests((prev) =>
       prev.map((r) => (r.id === req.id ? { ...r, status: "reflected" } : r))
@@ -91,9 +116,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
 
   const reflectAll = async () => {
     const pending = Array.from(latestByStaff.values()).filter((r) => r.status === "pending");
-    for (const req of pending) {
-      await reflectRequest(req);
-    }
+    for (const req of pending) await reflectRequest(req);
   };
 
   const submittedCount = latestByStaff.size;
@@ -102,60 +125,163 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
   const unsubmittedCount = currentStaff.length - submittedCount;
   const currentStore = data.stores.find((s) => s.id === data.selectedStoreId);
 
-  // 他店からの未反映ヘルプ一覧
+  // 他店からの未取込ヘルプ一覧
+  // ・helpAccepted/helpAccepted2 が true → 取込済み → 非表示
+  // ・当店シフトに既に存在する → 非表示
   const incomingHelp = useMemo<HelpEntry[]>(() => {
     const sid = data.selectedStoreId;
     const entries: HelpEntry[] = [];
-    Object.entries(data.dailyDataRecord).forEach(([date, dayData]) => {
-      dayData.shifts.forEach((sh) => {
-        if (sh.isHelp && sh.helpStoreId === sid) {
-          const already = dayData.shifts.some(
-            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime
-          );
-          if (!already) {
-            const staff = data.allStaff.find((s) => s.id === sh.staffId);
-            const fromStore = data.stores.find((s) => s.id === sh.storeId);
-            if (staff) entries.push({ date, staffId: sh.staffId, staffName: staff.name, fromStoreName: fromStore?.name ?? "他店", inTime: sh.inTime, outTime: sh.outTime, breakMinutes: sh.breakMinutes || 0, period: 1 });
-          }
-        }
-        if (sh.isHelp2 && sh.helpStoreId2 === sid && sh.inTime2 && sh.outTime2) {
-          const already = dayData.shifts.some(
-            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime2
-          );
-          if (!already) {
-            const staff = data.allStaff.find((s) => s.id === sh.staffId);
-            const fromStore = data.stores.find((s) => s.id === sh.storeId);
-            if (staff) entries.push({ date, staffId: sh.staffId, staffName: staff.name, fromStoreName: fromStore?.name ?? "他店", inTime: sh.inTime2!, outTime: sh.outTime2!, breakMinutes: sh.breakMinutes2 || 0, period: 2 });
-          }
-        }
-      });
-    });
-    return entries.sort((a, b) => a.date.localeCompare(b.date));
-  }, [data]);
+    const seen = new Set<string>();
 
-  const importHelp = (entry: HelpEntry) => {
+    for (const otherData of otherStoresData) {
+      const fromStoreId = otherData.selectedStoreId;
+
+      Object.entries(otherData.dailyDataRecord).forEach(([date, dayData]) => {
+        const currentDayData = data.dailyDataRecord[date];
+
+        dayData.shifts.forEach((sh) => {
+          const staff = data.allStaff.find((s) => s.id === sh.staffId);
+          if (!staff) return;
+          const fromStore =
+            data.stores.find((s) => s.id === sh.storeId) ??
+            otherData.stores?.find((s) => s.id === sh.storeId);
+
+          // P1
+          if (sh.isHelp && sh.helpStoreId === sid && !sh.helpAccepted) {
+            const key = `${date}|${sh.staffId}|${sh.inTime}|1`;
+            const alreadyInShifts = currentDayData?.shifts.some(
+              (s) => s.staffId === sh.staffId && s.inTime === sh.inTime
+            ) ?? false;
+            if (!alreadyInShifts && !seen.has(key)) {
+              seen.add(key);
+              entries.push({
+                date, staffId: sh.staffId, staffName: staff.name,
+                fromStoreId, fromStoreName: fromStore?.name ?? "他店",
+                inTime: sh.inTime, outTime: sh.outTime,
+                breakMinutes: sh.breakMinutes || 0, period: 1,
+              });
+            }
+          }
+
+          // P2
+          if (sh.isHelp2 && sh.helpStoreId2 === sid && sh.inTime2 && sh.outTime2 && !sh.helpAccepted2) {
+            const key = `${date}|${sh.staffId}|${sh.inTime2}|2`;
+            const alreadyInShifts = currentDayData?.shifts.some(
+              (s) => s.staffId === sh.staffId && s.inTime === sh.inTime2
+            ) ?? false;
+            if (!alreadyInShifts && !seen.has(key)) {
+              seen.add(key);
+              entries.push({
+                date, staffId: sh.staffId, staffName: staff.name,
+                fromStoreId, fromStoreName: fromStore?.name ?? "他店",
+                inTime: sh.inTime2, outTime: sh.outTime2,
+                breakMinutes: sh.breakMinutes2 || 0, period: 2,
+              });
+            }
+          }
+        });
+      });
+    }
+
+    return entries.sort((a, b) => a.date.localeCompare(b.date));
+  }, [data, otherStoresData]);
+
+  // 無視：取込せずに元店舗の helpAccepted を立てて非表示にする
+  const dismissHelp = async (entry: HelpEntry) => {
+    const sourceData = otherStoresData.find((d) => d.selectedStoreId === entry.fromStoreId);
+    if (sourceData) {
+      const updated = markHelpAccepted(sourceData, entry);
+      setOtherStoresData((prev) =>
+        prev.map((d) => (d.selectedStoreId === entry.fromStoreId ? updated : d))
+      );
+      await saveOtherStoreData(updated);
+    }
+  };
+
+  // 取込：当店にシフト追加 + 元店舗に helpAccepted を書き込む
+  const importHelp = async (entry: HelpEntry) => {
+    // 1. 当店データに追加
     updateData((d) => {
       const dayData = d.dailyDataRecord[entry.date];
       if (!dayData) return d;
-      const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false, isHelpReceived: true };
-      return { ...d, dailyDataRecord: { ...d.dailyDataRecord, [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] } } };
+      const newShift: Shift = {
+        storeId: d.selectedStoreId,
+        staffId: entry.staffId,
+        inTime: entry.inTime,
+        outTime: entry.outTime,
+        breakMinutes: entry.breakMinutes,
+        isHelp: false,
+        isHelpReceived: true,
+      };
+      return {
+        ...d,
+        dailyDataRecord: {
+          ...d.dailyDataRecord,
+          [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] },
+        },
+      };
     });
+
+    // 2. 元店舗データに helpAccepted を書き込む（リロード後も再表示しない）
+    const sourceData = otherStoresData.find((d) => d.selectedStoreId === entry.fromStoreId);
+    if (sourceData) {
+      const updated = markHelpAccepted(sourceData, entry);
+      setOtherStoresData((prev) =>
+        prev.map((d) => (d.selectedStoreId === entry.fromStoreId ? updated : d))
+      );
+      await saveOtherStoreData(updated);
+    }
   };
 
-  const importAllHelp = () => {
+  const importAllHelp = async () => {
+    // 1. 当店データに全追加
     updateData((d) => {
       let next = { ...d, dailyDataRecord: { ...d.dailyDataRecord } };
       incomingHelp.forEach((entry) => {
         const dayData = next.dailyDataRecord[entry.date];
         if (!dayData) return;
-        const already = dayData.shifts.some((s) => s.storeId === d.selectedStoreId && s.staffId === entry.staffId && s.inTime === entry.inTime);
+        const already = dayData.shifts.some(
+          (s) => s.staffId === entry.staffId && s.inTime === entry.inTime
+        );
         if (!already) {
-          const newShift = { storeId: d.selectedStoreId, staffId: entry.staffId, inTime: entry.inTime, outTime: entry.outTime, breakMinutes: entry.breakMinutes, isHelp: false, isHelpReceived: true };
-          next = { ...next, dailyDataRecord: { ...next.dailyDataRecord, [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] } } };
+          const newShift: Shift = {
+            storeId: d.selectedStoreId,
+            staffId: entry.staffId,
+            inTime: entry.inTime,
+            outTime: entry.outTime,
+            breakMinutes: entry.breakMinutes,
+            isHelp: false,
+            isHelpReceived: true,
+          };
+          next = {
+            ...next,
+            dailyDataRecord: {
+              ...next.dailyDataRecord,
+              [entry.date]: { ...dayData, shifts: [...dayData.shifts, newShift] },
+            },
+          };
         }
       });
       return next;
     });
+
+    // 2. 元店舗データを更新（店舗ごとにまとめて保存）
+    const updatedSourceMap = new Map<string, AppData>();
+    for (const entry of incomingHelp) {
+      const base = updatedSourceMap.get(entry.fromStoreId)
+        ?? otherStoresData.find((d) => d.selectedStoreId === entry.fromStoreId);
+      if (base) {
+        updatedSourceMap.set(entry.fromStoreId, markHelpAccepted(base, entry));
+      }
+    }
+    const savePromises: Promise<void>[] = [];
+    updatedSourceMap.forEach((updated) => {
+      setOtherStoresData((prev) =>
+        prev.map((d) => (d.selectedStoreId === updated.selectedStoreId ? updated : d))
+      );
+      savePromises.push(saveOtherStoreData(updated));
+    });
+    await Promise.all(savePromises);
   };
 
   return (
@@ -248,7 +374,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                       !isSubmitted ? "bg-rose-50/40" : "hover:bg-slate-50/50"
                     }`}
                   >
-                    {/* 名前 */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
@@ -261,8 +386,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                         <span className="text-sm font-bold text-slate-800">{staff.name}</span>
                       </div>
                     </td>
-
-                    {/* 提出状況 */}
                     <td className="px-4 py-3">
                       {isSubmitted ? (
                         <div className="flex items-center gap-1.5">
@@ -281,8 +404,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                         </div>
                       )}
                     </td>
-
-                    {/* 提出日時 */}
                     <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                       {req
                         ? new Date(req.submittedAt).toLocaleString("ja-JP", {
@@ -294,8 +415,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                         : <span className="text-slate-300">—</span>
                       }
                     </td>
-
-                    {/* 日数 */}
                     <td className="px-4 py-3 text-center">
                       {req ? (
                         <span className="text-sm font-black text-slate-700">
@@ -306,8 +425,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                         <span className="text-slate-300 text-xs">—</span>
                       )}
                     </td>
-
-                    {/* 取込状態 */}
                     <td className="px-4 py-3 text-center">
                       {isReflected ? (
                         <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
@@ -321,8 +438,6 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                         <span className="text-slate-300 text-xs">—</span>
                       )}
                     </td>
-
-                    {/* アクション */}
                     <td className="px-4 py-3 text-right">
                       {isPending && (
                         <button
@@ -362,14 +477,18 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
           {incomingHelp.length > 0 && (
             <button
               className="flex items-center gap-1 px-3 py-1 rounded-lg bg-teal-500 text-white text-xs font-black shadow hover:bg-teal-600 transition-all"
-              onClick={importAllHelp}
+              onClick={() => void importAllHelp()}
             >
               <CheckCheck size={11} /> 全て取込
             </button>
           )}
         </div>
 
-        {incomingHelp.length === 0 ? (
+        {loading ? (
+          <div className="py-8 flex justify-center">
+            <div className="w-5 h-5 border-2 border-slate-200 border-t-teal-500 rounded-full animate-spin" />
+          </div>
+        ) : incomingHelp.length === 0 ? (
           <div className="py-8 text-center text-slate-300 text-xs font-bold">
             未取込のヘルプシフトはありません
           </div>
@@ -397,12 +516,21 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
                   </td>
                   <td className="px-4 py-2.5 text-xs text-slate-500">{entry.fromStoreName}</td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      className="flex items-center gap-1 px-3 py-1 rounded-lg bg-teal-500 text-white text-xs font-black shadow hover:bg-teal-600 transition-all ml-auto"
-                      onClick={() => importHelp(entry)}
-                    >
-                      <CheckCheck size={11} /> 取込
-                    </button>
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button
+                        className="px-2 py-1 rounded-lg border border-slate-200 text-slate-400 text-xs font-bold hover:border-slate-300 hover:text-slate-500 transition-all"
+                        onClick={() => void dismissHelp(entry)}
+                        title="取込せずに非表示にする"
+                      >
+                        無視
+                      </button>
+                      <button
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-teal-500 text-white text-xs font-black shadow hover:bg-teal-600 transition-all"
+                        onClick={() => void importHelp(entry)}
+                      >
+                        <CheckCheck size={11} /> 取込
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

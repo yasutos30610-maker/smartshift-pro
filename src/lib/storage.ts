@@ -162,6 +162,21 @@ async function _fetchById(storeId: string, year: number, month: number): Promise
   return (data?.payload as AppData) ?? null;
 }
 
+// 他店データをSupabaseのみに保存（localStorageは触らない）
+export async function saveOtherStoreData(data: AppData): Promise<void> {
+  try {
+    await supabase.from("shift_data").upsert({
+      id: rowId(data),
+      store_id: data.selectedStoreId,
+      year: data.year,
+      month: data.month,
+      payload: data,
+    });
+  } catch (e) {
+    console.error("他店データ保存エラー:", e);
+  }
+}
+
 export async function syncFromSupabase(
   storeId: string,
   year: number,

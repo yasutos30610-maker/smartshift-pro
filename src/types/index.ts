@@ -17,6 +17,7 @@ export interface Staff {
   hourlyRate: number;
   monthlySalary: number;
   adjustments: Adjustment[];
+  employeeNo?: string;  // ログイン用従業員番号
   pass?: string;
   isRetired?: boolean;
   dailyTransport?: number;    // AP用: 1日往復交通費
@@ -44,6 +45,7 @@ export interface ShiftRequest {
 export interface Store {
   id: string;
   name: string;
+  shortName?: string;
   targetRatio: number;
 }
 
@@ -65,8 +67,12 @@ export interface Shift {
   // Request
   requestedInTime?: string;
   requestedOutTime?: string;
+  // Memo
+  note?: string;
   // Cross-store
   isHelpReceived?: boolean; // 他店から取込んだヘルプシフト（社員は時給換算で請求）
+  helpAccepted?: boolean;   // P1 ヘルプが取込済み（元店舗側に保存）
+  helpAccepted2?: boolean;  // P2 ヘルプが取込済み（元店舗側に保存）
 }
 
 export interface DailyData {
@@ -87,7 +93,8 @@ export interface AppData {
   version: number;
   sharedAt?: string;
   shareId?: string;
-  confirmedDates?: string[];
+  confirmedDates?: Record<string, string[]>; // storeId → confirmed date strings
+  importedHelpKeys?: Record<string, string[]>; // storeId → ["date|staffId|inTime", ...]
 }
 
 export interface DayInfo {
