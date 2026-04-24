@@ -8,15 +8,17 @@ import { calcDailyCost, calcMinutes } from "../../utils/calc";
 // ─── DayRow はトップレベルで定義（コンポーネント内定義だと毎レンダーで再マウントされ入力がリセットされる）
 interface DayRowProps {
   day: DailyData;
-  currentStaff: Staff[];
+  allStaff: Staff[];
+  selectedStoreId: string;
   offDays: number;
   targetRatio: number;
   updateData: UpdateDataFn;
 }
 
-function DayRow({ day, currentStaff, offDays, targetRatio, updateData }: DayRowProps) {
+function DayRow({ day, allStaff, selectedStoreId, offDays, targetRatio, updateData }: DayRowProps) {
   const dayCost = day.shifts.reduce((s, sh) => {
-    const staff = currentStaff.find((st) => st.id === sh.staffId);
+    if (sh.storeId && sh.storeId !== selectedStoreId) return s;
+    const staff = allStaff.find((st) => st.id === sh.staffId);
     return s + (staff ? calcDailyCost(sh, staff, offDays, day.date) : 0);
   }, 0);
   const ratio = day.salesActual > 0 ? (dayCost / day.salesActual) * 100 : 0;
@@ -106,7 +108,6 @@ function KpiRow({ num, label, main, sub, accent }: {
 interface DashboardTabProps {
   data: AppData;
   currentStore: Store | undefined;
-  currentStaff: Staff[];
   monthDailyData: DailyData[];
   offDays: number;
   targetRatio: number;
@@ -122,7 +123,7 @@ interface DashboardTabProps {
 }
 
 export default function DashboardTab({
-  data, currentStore, currentStaff, monthDailyData, offDays, targetRatio,
+  data, currentStore, monthDailyData, offDays, targetRatio,
   totalActual, totalBudget, totalCost, forecast, forecastRatio,
   updateData, isExporting, exportDashboardToPDF, dashboardRef,
 }: DashboardTabProps) {
@@ -135,7 +136,8 @@ export default function DashboardTab({
   const actualCost = monthDailyData.reduce((sum, day) => {
     if ((day.salesActual ?? 0) <= 0) return sum;
     return sum + day.shifts.reduce((s, sh) => {
-      const staff = currentStaff.find((st) => st.id === sh.staffId);
+      if (sh.storeId && sh.storeId !== data.selectedStoreId) return s;
+      const staff = data.allStaff.find((st) => st.id === sh.staffId);
       return s + (staff ? calcDailyCost(sh, staff, offDays, day.date) : 0);
     }, 0);
   }, 0);
@@ -150,8 +152,9 @@ export default function DashboardTab({
   const actualWorkedMins = monthDailyData.reduce((sum, day) => {
     if ((day.salesActual ?? 0) <= 0) return sum;
     return sum + day.shifts.reduce((s, sh) => {
+      if (sh.storeId && sh.storeId !== data.selectedStoreId) return s;
       if (!sh.inTime) return s;
-      const staff = currentStaff.find((st) => st.id === sh.staffId);
+      const staff = data.allStaff.find((st) => st.id === sh.staffId);
       if (!staff) return s;
       return s + Math.max(0, calcMinutes(sh.inTime, sh.outTime) - (sh.breakMinutes ?? 0));
     }, 0);
@@ -251,7 +254,7 @@ export default function DashboardTab({
                 <TableHead />
                 <tbody>
                   {leftDays.map((day) => (
-                    <DayRow key={day.date} day={day} currentStaff={currentStaff} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
+                    <DayRow key={day.date} day={day} allStaff={data.allStaff} selectedStoreId={data.selectedStoreId} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
                   ))}
                 </tbody>
               </table>
@@ -261,7 +264,7 @@ export default function DashboardTab({
                 <TableHead />
                 <tbody>
                   {rightDays.map((day) => (
-                    <DayRow key={day.date} day={day} currentStaff={currentStaff} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
+                    <DayRow key={day.date} day={day} allStaff={data.allStaff} selectedStoreId={data.selectedStoreId} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
                   ))}
                 </tbody>
               </table>
@@ -272,7 +275,7 @@ export default function DashboardTab({
               <TableHead />
               <tbody>
                 {monthDailyData.map((day) => (
-                  <DayRow key={day.date} day={day} currentStaff={currentStaff} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
+                  <DayRow key={day.date} day={day} allStaff={data.allStaff} selectedStoreId={data.selectedStoreId} offDays={offDays} targetRatio={targetRatio} updateData={updateData} />
                 ))}
               </tbody>
             </table>

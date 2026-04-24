@@ -185,21 +185,35 @@ export default function SettingsTab({ data, updateData }: SettingsTabProps) {
                 className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 outline-none focus:border-amber-500 disabled:opacity-60"
                 value={store.name}
                 disabled={!isAdmin}
+                placeholder="正式名称"
                 onChange={(e) => updateData((d) => ({
                   ...d,
                   stores: d.stores.map((s) => s.id === store.id ? { ...s, name: e.target.value } : s),
+                }))}
+              />
+              <input
+                className="w-36 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 outline-none focus:border-amber-500 disabled:opacity-60"
+                value={store.shortName ?? ""}
+                disabled={!isAdmin}
+                placeholder="短縮名（例: 渋谷センター街）"
+                onChange={(e) => updateData((d) => ({
+                  ...d,
+                  stores: d.stores.map((s) => s.id === store.id ? { ...s, shortName: e.target.value || undefined } : s),
                 }))}
               />
               <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">目標人件費率</span>
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-amber-500 w-16 text-right font-mono disabled:opacity-60"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-amber-500 w-20 text-right font-mono disabled:opacity-60"
                   value={store.targetRatio}
                   disabled={!isAdmin}
                   onChange={(e) => updateData((d) => ({
                     ...d,
-                    stores: d.stores.map((s) => s.id === store.id ? { ...s, targetRatio: Number(e.target.value) } : s),
+                    stores: d.stores.map((s) => s.id === store.id ? { ...s, targetRatio: parseFloat(e.target.value) || 0 } : s),
                   }))}
                 />
                 <span className="text-xs text-slate-400 font-bold">%</span>

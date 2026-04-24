@@ -1,15 +1,15 @@
 import type { RefObject } from "react";
 import { RefreshCw, Share2 } from "lucide-react";
-import type { AppData, Staff, Store, DayInfo } from "../../types";
+import type { AppData, Store, DayInfo } from "../../types";
 import { formatDate, DOW } from "../../utils/date";
 import { calcDailyCost } from "../../utils/calc";
+import { getStoreDisplayName } from "../../utils/store";
 
 interface ViewTabProps {
   data: AppData;
   weeks: DayInfo[][];
   weekIdx: number;
   setWeekIdx: (i: number) => void;
-  currentStaff: Staff[];
   currentStore: Store | undefined;
   offDays: number;
   targetRatio: number;
@@ -34,11 +34,11 @@ const HOUR_LABELS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => 
 });
 
 export default function ViewTab({
-  data, weeks, weekIdx, setWeekIdx, currentStaff, currentStore,
+  data, weeks, weekIdx, setWeekIdx, currentStore,
   offDays, targetRatio, isExporting, exportToPDF, printRef,
 }: ViewTabProps) {
   const week = weeks[weekIdx] ?? [];
-  const confirmedDates = new Set(data.confirmedDates ?? []);
+  const confirmedDates = new Set(data.confirmedDates?.[data.selectedStoreId] ?? []);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -104,7 +104,8 @@ export default function ViewTab({
             });
 
           const dayCost = dayData.shifts.reduce((s, sh) => {
-            const staff = currentStaff.find((st) => st.id === sh.staffId);
+            if (sh.storeId && sh.storeId !== data.selectedStoreId) return s;
+            const staff = data.allStaff.find((st) => st.id === sh.staffId);
             return s + (staff ? calcDailyCost(sh, staff, offDays, date) : 0);
           }, 0);
           const ratio = dayData.salesBudget > 0 ? (dayCost / dayData.salesBudget) * 100 : 0;
@@ -117,7 +118,7 @@ export default function ViewTab({
                 <div className="flex items-center gap-2">
                   <span className="font-black text-xs text-slate-800">{formatDate(date)}</span>
                   <span className="text-[10px] text-slate-400 font-bold">{DOW[d.dow]}</span>
-                  <span className="text-[10px] text-slate-400">{shifts.length}名</span>
+                  <span className="text-[10px] text-slate-400">{shifts.filter((sh) => !sh.isHelp).length}名</span>
                   {isConfirmed && (
                     <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
                       確定済み
@@ -142,12 +143,12 @@ export default function ViewTab({
               ) : (
                 <div className="px-3 py-2">
                   {/* Time axis */}
-                  <div className="flex mb-1" style={{ marginLeft: "7rem" }}>
+                  <div className="relative h-4 mb-1" style={{ marginLeft: "7rem" }}>
                     {HOUR_LABELS.map((label, i) => (
                       <div
                         key={i}
-                        className="flex-1 text-[9px] text-slate-300 font-bold border-l border-slate-100 pl-0.5"
-                        style={{ minWidth: 0 }}
+                        className="absolute top-0 text-[9px] text-slate-300 font-bold border-l border-slate-100 pl-0.5 whitespace-nowrap"
+                        style={{ left: `${(i / (END_HOUR - START_HOUR)) * 100}%` }}
                       >
                         {label}
                       </div>
@@ -179,63 +180,69 @@ export default function ViewTab({
                         : "bg-amber-50 text-amber-700 border-amber-200";
 
                       const barCls1 = sh.isHelp
-                        ? "bg-emerald-100 border-emerald-300 text-emerald-800"
-                        : isSeishain
-                        ? "bg-blue-100 border-blue-300 text-blue-800"
-                        : "bg-amber-100 border-amber-300 text-amber-800";
+                        ? "bg-blue-100 border-blue-300 text-blue-700"
+                        : "bg-orange-100 border-orange-300 text-orange-800";
 
                       const barCls2 = sh.isHelp2
-                        ? "bg-teal-100 border-teal-300 text-teal-800"
-                        : isSeishain
-                        ? "bg-blue-50 border-blue-200 text-blue-700"
-                        : "bg-amber-50 border-amber-200 text-amber-700";
+                        ? "bg-blue-100 border-blue-300 text-blue-700"
+                        : "bg-orange-100 border-orange-300 text-orange-800";
 
                       const label1 = sh.isHelp
-                        ? `${sh.inTime}–${sh.outTime} ${helpStore1?.name ?? "他店"}ヘルプ`
+                        ? `${sh.inTime}–${sh.outTime} ${helpStore1 ? getStoreDisplayName(helpStore1) : "他店"}ヘルプ`
                         : `${sh.inTime}–${sh.outTime}`;
                       const label2 = hasP2
                         ? (sh.isHelp2
-                            ? `${sh.inTime2}–${sh.outTime2} ${helpStore2?.name ?? "他店"}ヘルプ`
+                            ? `${sh.inTime2}–${sh.outTime2} ${helpStore2 ? getStoreDisplayName(helpStore2) : "他店"}ヘルプ`
                             : `${sh.inTime2}–${sh.outTime2}`)
                         : "";
 
                       return (
-                        <div key={sh.staffId} className="flex items-center gap-2 h-6">
-                          {/* Staff label */}
-                          <div className="w-28 shrink-0 flex items-center gap-1 overflow-hidden">
-                            <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
-                              {sh.isHelp ? "HELP" : isHelpReceived ? "H受" : isSeishain ? "社員" : "AP"}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-700 truncate">
-                              {staff?.name ?? "—"}
-                            </span>
-                          </div>
+                        <div key={sh.staffId} className="flex flex-col">
+                          <div className="flex items-center gap-2 h-6">
+                            {/* Staff label */}
+                            <div className="w-28 shrink-0 flex items-center gap-1 overflow-hidden">
+                              <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
+                                {sh.isHelp ? "HELP" : isHelpReceived ? "H受" : isSeishain ? "社員" : "AP"}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-700 truncate">
+                                {staff?.name ?? "—"}
+                              </span>
+                            </div>
 
-                          {/* Bar area */}
-                          <div className="flex-1 relative h-5">
-                            {/* Grid lines */}
-                            <div className="absolute inset-0 flex pointer-events-none">
+                            {/* Bar area */}
+                            <div className="flex-1 relative h-5">
+                              {/* Grid lines */}
                               {HOUR_LABELS.map((_, i) => (
-                                <div key={i} className="flex-1 border-l border-slate-100" />
+                                <div
+                                  key={i}
+                                  className="absolute top-0 bottom-0 border-l border-slate-100 pointer-events-none"
+                                  style={{ left: `${(i / (END_HOUR - START_HOUR)) * 100}%` }}
+                                />
                               ))}
-                            </div>
-                            {/* P1 bar */}
-                            <div
-                              className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls1}`}
-                              style={{ left: `${left1}%`, width: `${width1}%` }}
-                            >
-                              <span className="whitespace-nowrap">{label1}</span>
-                            </div>
-                            {/* P2 bar */}
-                            {hasP2 && (
+                              {/* P1 bar */}
                               <div
-                                className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls2}`}
-                                style={{ left: `${left2}%`, width: `${width2}%` }}
+                                className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls1}`}
+                                style={{ left: `${left1}%`, width: `${width1}%` }}
                               >
-                                <span className="whitespace-nowrap">{label2}</span>
+                                <span className="whitespace-nowrap">{label1}</span>
                               </div>
-                            )}
+                              {/* P2 bar */}
+                              {hasP2 && (
+                                <div
+                                  className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls2}`}
+                                  style={{ left: `${left2}%`, width: `${width2}%` }}
+                                >
+                                  <span className="whitespace-nowrap">{label2}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
+                          {/* Note */}
+                          {sh.note && (
+                            <div className="flex items-center gap-2 mt-0.5 mb-1" style={{ marginLeft: "7.5rem" }}>
+                              <p className="text-[9px] text-slate-400 italic truncate">{sh.note}</p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

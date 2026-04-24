@@ -46,13 +46,14 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           {/* ヘッダー */}
-          <div className="hidden md:grid grid-cols-[180px_90px_140px_90px_90px_70px_90px_100px_110px_50px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
+          <div className="hidden md:grid grid-cols-[180px_90px_140px_90px_90px_70px_80px_90px_100px_110px_50px] gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest items-center">
             <div className="px-1">名前</div>
             <div className="px-1">種別</div>
             <div className="text-right">基本給与/時給</div>
             <div className="text-center">社会保険</div>
             <div className="text-center">ヘルプ</div>
             <div className="text-center">退職済</div>
+            <div className="text-center">従業員番号</div>
             <div className="text-center">PASS</div>
             <div className="text-right">交通費</div>
             <div className="text-center">加算設定</div>
@@ -75,7 +76,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
                       : "hover:bg-slate-50/50"
                   }`}
                 >
-                  <div className="p-4 md:px-4 md:py-2 grid grid-cols-1 md:grid-cols-[180px_90px_140px_90px_90px_70px_90px_100px_110px_50px] gap-4 items-center">
+                  <div className="p-4 md:px-4 md:py-2 grid grid-cols-1 md:grid-cols-[180px_90px_140px_90px_90px_70px_80px_90px_100px_110px_50px] gap-4 items-center">
 
                     {/* 名前 */}
                     <div className="flex items-center gap-3">
@@ -136,6 +137,18 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
                         checked={retired}
                         onChange={(e) => updateStaff(staff.id, { isRetired: e.target.checked })}
                         className="w-4 h-4 rounded border-slate-300 text-slate-400 focus:ring-slate-300/20 accent-slate-400"
+                      />
+                    </div>
+
+                    {/* 従業員番号 */}
+                    <div className="flex justify-between lg:justify-center items-center gap-2">
+                      <span className="md:hidden text-[10px] font-bold text-slate-400">従業員番号</span>
+                      <input
+                        type="text"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-mono outline-none focus:border-blue-500 placeholder:text-slate-300"
+                        value={staff.employeeNo ?? ""}
+                        placeholder="例: 10001"
+                        onChange={(e) => updateStaff(staff.id, { employeeNo: e.target.value || undefined })}
                       />
                     </div>
 

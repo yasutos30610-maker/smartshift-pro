@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LogIn, Send, CalendarDays, CalendarRange, LogOut, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { LogIn, Send, CalendarDays, CalendarRange, LogOut, CheckCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { syncFromSupabase } from "../lib/storage";
 import { loadStoresForMonth, submitRequest, fetchRequests } from "../lib/requests";
 import type { AppData, Staff, RequestedShift, ShiftRequest } from "../types";
@@ -92,12 +92,27 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
 
   const [stores, setStores] = useState<Array<{ storeId: string; storeName: string }>>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
-  const [appData, setAppData] = useState<AppData | null>(null);
-  const [staffId, setStaffId] = useState("");
+  const [storeQuery, setStoreQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [employeeNo, setEmployeeNo] = useState("");
   const [pass, setPass] = useState("");
-  const [passError, setPassError] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [loadingStores, setLoadingStores] = useState(true);
-  const [loadingStore, setLoadingStore] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  const LAST_STORE_KEY = "smartshift_last_store";
+
+  const filteredStores = storeQuery.trim()
+    ? stores.filter((s) => s.storeName.includes(storeQuery.trim()))
+    : stores;
+
+  const selectStore = (storeId: string, storeName: string) => {
+    setSelectedStoreId(storeId);
+    setStoreQuery(storeName);
+    setShowSuggestions(false);
+    setLoginError("");
+    localStorage.setItem(LAST_STORE_KEY, JSON.stringify({ storeId, storeName }));
+  };
 
   useEffect(() => {
     async function load() {
@@ -114,49 +129,58 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
           } catch { /* ignore */ }
         }
       }
+      // 前回ログイン店舗を復元
+      try {
+        const last = localStorage.getItem("smartshift_last_store");
+        if (last) {
+          const { storeId, storeName } = JSON.parse(last);
+          setSelectedStoreId(storeId);
+          setStoreQuery(storeName);
+        }
+      } catch { /* ignore */ }
       setLoadingStores(false);
     }
     void load();
   }, [year, month]);
 
-  useEffect(() => {
-    if (!selectedStoreId) return;
-    async function loadStore() {
-      setLoadingStore(true);
-      setStaffId("");
-      setPass("");
-      setPassError("");
-      let data = await syncFromSupabase(selectedStoreId, year, month);
-      if (!data) {
-        const local = localStorage.getItem("smartshift_data");
-        if (local) {
-          try { data = JSON.parse(local) as AppData; } catch { /* ignore */ }
-        }
+  const handleLogin = async () => {
+    if (!selectedStoreId || !employeeNo || !pass) return;
+    setLoggingIn(true);
+    setLoginError("");
+
+    let data = await syncFromSupabase(selectedStoreId, year, month);
+    if (!data) {
+      const local = localStorage.getItem("smartshift_data");
+      if (local) {
+        try { data = JSON.parse(local) as AppData; } catch { /* ignore */ }
       }
-      setAppData(data);
-      setLoadingStore(false);
     }
-    void loadStore();
-  }, [selectedStoreId, year, month]);
+    if (!data) {
+      setLoginError(lang === "ja" ? "店舗データを取得できませんでした" : "Could not load store data");
+      setLoggingIn(false);
+      return;
+    }
 
-  const staffList = appData
-    ? appData.allStaff.filter((s) => s.storeId === selectedStoreId)
-    : [];
-
-  const handleLogin = () => {
-    if (!appData || !staffId) return;
-    const staff = appData.allStaff.find((s) => s.id === staffId);
-    if (!staff) return;
+    const staff = data.allStaff.find(
+      (s) => s.storeId === selectedStoreId && s.employeeNo === employeeNo.trim() && !s.isRetired
+    );
+    if (!staff) {
+      setLoginError(lang === "ja" ? "従業員番号が見つかりません" : "Employee number not found");
+      setLoggingIn(false);
+      return;
+    }
     if (!staff.pass) {
-      setPassError(t("noPassSet"));
+      setLoginError(t("noPassSet"));
+      setLoggingIn(false);
       return;
     }
     if (staff.pass !== pass) {
-      setPassError(t("wrongPass"));
+      setLoginError(t("wrongPass"));
+      setLoggingIn(false);
       return;
     }
-    setPassError("");
-    onLogin(staff, appData);
+    setLoggingIn(false);
+    onLogin(staff, data);
   };
 
   return (
@@ -192,72 +216,104 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Store select */}
-                <div>
+                {/* Store search */}
+                <div className="relative">
                   <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">{t("store")}</label>
-                  <select
-                    className="w-full bg-slate-800 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors"
-                    value={selectedStoreId}
-                    onChange={(e) => setSelectedStoreId(e.target.value)}
-                  >
-                    <option value="" className="text-slate-900 bg-white">{t("pleaseSelect")}</option>
-                    {stores.map((s) => (
-                      <option key={s.storeId} value={s.storeId} className="text-slate-900 bg-white">{s.storeName}</option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors placeholder:text-white/30 ${selectedStoreId ? "border-amber-400/60" : "border-white/20"}`}
+                    value={storeQuery}
+                    onChange={(e) => {
+                      setStoreQuery(e.target.value);
+                      setSelectedStoreId("");
+                      setShowSuggestions(true);
+                      setLoginError("");
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    placeholder={lang === "ja" ? "店舗名を入力して絞り込み..." : "Search store name..."}
+                    autoComplete="off"
+                  />
+                  {selectedStoreId && (
+                    <div className="absolute right-3 top-1/2 translate-y-1 text-amber-400 text-[10px] font-black">✓</div>
+                  )}
+                  {showSuggestions && storeQuery && filteredStores.length > 0 && (
+                    <ul className="absolute z-50 w-full mt-1 bg-slate-800 border border-white/20 rounded-xl overflow-hidden shadow-2xl max-h-48 overflow-y-auto">
+                      {filteredStores.slice(0, 20).map((s) => (
+                        <li
+                          key={s.storeId}
+                          className="px-3 py-2.5 text-sm font-bold text-white hover:bg-amber-500/30 cursor-pointer transition-colors border-b border-white/5 last:border-0"
+                          onMouseDown={() => selectStore(s.storeId, s.storeName)}
+                        >
+                          {s.storeName}
+                        </li>
+                      ))}
+                      {filteredStores.length > 20 && (
+                        <li className="px-3 py-2 text-[10px] text-white/40 font-bold text-center">
+                          {lang === "ja" ? `他 ${filteredStores.length - 20} 件 — さらに絞り込んでください` : `${filteredStores.length - 20} more — refine your search`}
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                  {showSuggestions && storeQuery && filteredStores.length === 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-white/20 rounded-xl px-3 py-3 text-xs text-white/40 font-bold text-center">
+                      {lang === "ja" ? "該当する店舗がありません" : "No stores found"}
+                    </div>
+                  )}
                 </div>
 
-                {/* Name select */}
+                {/* 従業員番号 */}
                 {selectedStoreId && (
                   <div>
-                    <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">{t("name")}</label>
-                    {loadingStore ? (
-                      <div className="w-6 h-6 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin" />
-                    ) : (
-                      <select
-                        className="w-full bg-slate-800 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors"
-                        value={staffId}
-                        onChange={(e) => { setStaffId(e.target.value); setPass(""); setPassError(""); }}
-                      >
-                        <option value="" className="text-slate-900 bg-white">{t("pleaseSelect")}</option>
-                        {staffList.map((s) => (
-                          <option key={s.id} value={s.id} className="text-slate-900 bg-white">{s.name}</option>
-                        ))}
-                      </select>
-                    )}
+                    <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">
+                      {lang === "ja" ? "従業員番号" : "Employee No."}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors font-mono ${loginError ? "border-rose-400" : "border-white/20"}`}
+                      value={employeeNo}
+                      onChange={(e) => { setEmployeeNo(e.target.value); setLoginError(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                      placeholder={lang === "ja" ? "例: 10001" : "e.g. 10001"}
+                      autoComplete="username"
+                    />
                   </div>
                 )}
 
                 {/* Password */}
-                {staffId && (
+                {selectedStoreId && (
                   <div>
                     <label className="block text-xs font-black text-white/60 uppercase tracking-widest mb-1.5">
                       {t("password")}
                     </label>
                     <input
                       type="password"
-                      className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors ${passError ? "border-rose-400" : "border-white/20"}`}
+                      className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-white text-sm font-bold outline-none focus:border-amber-400 transition-colors ${loginError ? "border-rose-400" : "border-white/20"}`}
                       value={pass}
-                      onChange={(e) => { setPass(e.target.value); setPassError(""); }}
+                      onChange={(e) => { setPass(e.target.value); setLoginError(""); }}
                       onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                       placeholder={t("passwordPlaceholder")}
                       autoComplete="current-password"
                     />
-                    {passError && <p className="text-rose-400 text-xs font-bold mt-1">{passError}</p>}
+                    {loginError && <p className="text-rose-400 text-xs font-bold mt-1">{loginError}</p>}
                   </div>
                 )}
 
                 {/* Login button */}
                 <button
                   className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all ${
-                    staffId && pass
+                    selectedStoreId && employeeNo && pass && !loggingIn
                       ? "bg-amber-500 hover:bg-amber-400 text-white shadow-lg"
                       : "bg-white/10 text-white/30 cursor-not-allowed"
                   }`}
                   onClick={handleLogin}
-                  disabled={!staffId || !pass}
+                  disabled={!selectedStoreId || !employeeNo || !pass || loggingIn}
                 >
-                  <LogIn size={16} /> {t("login")}
+                  {loggingIn
+                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {lang === "ja" ? "確認中..." : "Checking..."}</>
+                    : <><LogIn size={16} /> {t("login")}</>
+                  }
                 </button>
               </div>
             )}
@@ -302,7 +358,15 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
       const reqs = await fetchRequests(staff.storeId, targetYear, targetMonth);
       const mine = reqs.find((r) => r.staffId === staff.id);
       setExistingRequest(mine ?? null);
-      setInputs({});
+      if (mine) {
+        const preloaded: Record<string, { inTime: string; outTime: string; off: boolean }> = {};
+        for (const s of mine.shifts) {
+          preloaded[s.date] = { inTime: s.inTime, outTime: s.outTime, off: false };
+        }
+        setInputs(preloaded);
+      } else {
+        setInputs({});
+      }
       setSubmitted(false);
     }
     void load();
@@ -315,25 +379,41 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
     });
   };
 
-  const isResubmit = existingRequest != null;
+  const weekDateSet = new Set(weekDays.map((d) => d.date));
+  const isWeekResubmit = !!(existingRequest?.shifts.some((s) => weekDateSet.has(s.date)));
+  const isMonthResubmit = existingRequest != null;
 
   const handleSubmit = async () => {
-    const newShifts: RequestedShift[] = days
-      .filter((d) => inputs[d.date] && !inputs[d.date].off && inputs[d.date].inTime)
+    // 変更があった日のみ収集（前回提出と比較）
+    const changedShifts: RequestedShift[] = days
+      .filter((d) => {
+        const val = inputs[d.date];
+        if (!val || val.off || !val.inTime) return false;
+        const prev = existingRequest?.shifts.find((s) => s.date === d.date);
+        if (!prev) return true;
+        return val.inTime !== prev.inTime || (val.outTime || "18:00") !== prev.outTime;
+      })
       .map((d) => ({
         date: d.date,
         inTime: inputs[d.date].inTime,
         outTime: inputs[d.date].outTime || "18:00",
       }));
 
-    const mergedShifts: RequestedShift[] = isResubmit && existingRequest
+    const removedDates = new Set(days.filter((d) => inputs[d.date]?.off).map((d) => d.date));
+
+    if (isMonthResubmit && changedShifts.length === 0 && removedDates.size === 0) {
+      onToast(lang === "ja" ? "変更がありません" : "No changes detected", "error");
+      return;
+    }
+
+    const mergedShifts: RequestedShift[] = isMonthResubmit && existingRequest
       ? [
           ...existingRequest.shifts.filter(
-            (s) => !newShifts.some((ns) => ns.date === s.date) && !inputs[s.date]?.off
+            (s) => !changedShifts.some((cs) => cs.date === s.date) && !removedDates.has(s.date)
           ),
-          ...newShifts,
+          ...changedShifts,
         ].sort((a, b) => a.date.localeCompare(b.date))
-      : newShifts;
+      : changedShifts;
 
     if (mergedShifts.length === 0) {
       onToast(t("noShiftError"), "error");
@@ -349,19 +429,19 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
       shifts: mergedShifts,
       submittedAt: new Date().toISOString(),
       status: "pending",
-      resubmit: isResubmit,
+      resubmit: isMonthResubmit,
     });
     setSubmitting(false);
 
     if (ok) {
       setSubmitted(true);
-      const addedCount = newShifts.length;
+      const changedCount = changedShifts.length;
       const totalCount = mergedShifts.length;
       onToast(
-        isResubmit
+        isMonthResubmit
           ? lang === "ja"
-            ? `再申請しました！（合計${totalCount}日 / 今回${addedCount}日追加）`
-            : `Resubmitted! (Total ${totalCount} days / ${addedCount} added)`
+            ? `再申請しました！（合計${totalCount}日 / 変更${changedCount}日）`
+            : `Resubmitted! (Total ${totalCount} days / ${changedCount} changed)`
           : lang === "ja"
             ? `シフト希望を送信しました！（${totalCount}日）`
             : `Shift request sent! (${totalCount} days)`
@@ -382,14 +462,14 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
   if (submitted) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isResubmit ? "bg-blue-100" : "bg-emerald-100"}`}>
-          <CheckCircle size={40} className={isResubmit ? "text-blue-600" : "text-emerald-600"} />
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isMonthResubmit ? "bg-blue-100" : "bg-emerald-100"}`}>
+          <CheckCircle size={40} className={isMonthResubmit ? "text-blue-600" : "text-emerald-600"} />
         </div>
-        <h2 className="text-xl font-black text-slate-900">{isResubmit ? t("resubmitTitle") : t("sentTitle")}</h2>
+        <h2 className="text-xl font-black text-slate-900">{isMonthResubmit ? t("resubmitTitle") : t("sentTitle")}</h2>
         <p className="text-slate-500 text-sm text-center whitespace-pre-line">
-          {t("sentMsg", targetYear, targetMonth, isResubmit)}
+          {t("sentMsg", targetYear, targetMonth, isMonthResubmit)}
         </p>
-        {isResubmit && existingRequest && (
+        {isMonthResubmit && existingRequest && (
           <p className="text-xs text-blue-600 font-bold bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 text-center">
             {t("inheritedMsg")}
           </p>
@@ -456,7 +536,7 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
         {weeks.map((wk, i) => (
           <button
             key={i}
-            className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${
               weekIdx === i
                 ? "bg-white text-amber-700 shadow-sm border border-amber-100"
                 : "text-slate-400 hover:text-slate-600"
@@ -464,6 +544,9 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
             onClick={() => setWeekIdx(i)}
           >
             {wk[0] ? t("weekLabel", targetMonth, wk[0].day) : `W${i + 1}`}
+            {existingRequest?.shifts.some((s) => wk.some((d) => d.date === s.date)) && (
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+            )}
           </button>
         ))}
       </div>
@@ -561,7 +644,7 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
           className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-black shadow transition-all ${
             submitting
               ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-              : isResubmit
+              : isWeekResubmit
               ? "bg-blue-500 text-white"
               : "bg-amber-500 text-white"
           }`}
@@ -569,7 +652,7 @@ function SubmitTab({ staff, lang, onToast }: SubmitTabProps) {
           disabled={submitting}
         >
           <Send size={15} />
-          {submitting ? t("sending") : isResubmit ? t("resubmit") : t("sendShift")}
+          {submitting ? t("sending") : isWeekResubmit ? t("resubmit") : t("sendShift")}
         </button>
         <span className="text-[11px] text-slate-400 text-center">
           {t("daysSelected", Object.values(inputs).filter((v) => !v.off).length)}
@@ -590,7 +673,7 @@ function DailyView({ appData, lang, weeks }: DailyViewProps) {
   const t = useT(lang);
   const [weekIdx, setWeekIdx] = useState(0);
   const week = weeks[weekIdx] ?? [];
-  const confirmedDates = new Set(appData.confirmedDates ?? []);
+  const confirmedDates = new Set<string>((appData.confirmedDates as Record<string, string[]> | undefined)?.[appData.selectedStoreId] ?? []);
 
   const currentStaff = appData.allStaff.filter((s) => s.storeId === appData.selectedStoreId);
 
@@ -670,18 +753,30 @@ function DailyView({ appData, lang, weeks }: DailyViewProps) {
                       <div className="space-y-1">
                         {shifts.map((sh) => {
                           const s = currentStaff.find((st) => st.id === sh.staffId);
-                          const left = timeToPercent(sh.inTime);
-                          const right = timeToPercent(sh.outTime);
-                          const width = Math.max(0, right - left);
-                          const isHelp = sh.isHelp;
+                          const left1 = timeToPercent(sh.inTime);
+                          const width1 = Math.max(0, timeToPercent(sh.outTime) - left1);
+                          const hasP2 = !!sh.inTime2 && !!sh.outTime2;
+                          const left2 = hasP2 ? timeToPercent(sh.inTime2!) : 0;
+                          const width2 = hasP2 ? Math.max(0, timeToPercent(sh.outTime2!) - left2) : 0;
                           const isSeishain = s?.type === "社員";
-                          const badgeCls = isHelp ? "bg-emerald-100 text-emerald-700 border-emerald-200" : isSeishain ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200";
-                          const barCls = isHelp ? "bg-emerald-100 border-emerald-300 text-emerald-800" : isSeishain ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-amber-100 border-amber-300 text-amber-800";
+                          const badgeCls = sh.isHelp ? "bg-emerald-100 text-emerald-700 border-emerald-200" : isSeishain ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200";
+                          const barCls1 = sh.isHelp ? "bg-emerald-100 border-emerald-300 text-emerald-800" : isSeishain ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-amber-100 border-amber-300 text-amber-800";
+                          const barCls2 = sh.isHelp2 ? "bg-teal-100 border-teal-300 text-teal-800" : isSeishain ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-amber-50 border-amber-200 text-amber-700";
+                          const helpStore1 = sh.helpStoreId ? appData.stores.find((st) => st.id === sh.helpStoreId) : undefined;
+                          const helpStore2 = sh.helpStoreId2 ? appData.stores.find((st) => st.id === sh.helpStoreId2) : undefined;
+                          const label1 = sh.isHelp
+                            ? `${sh.inTime}–${sh.outTime} ${helpStore1?.name ?? "他店"}H`
+                            : `${sh.inTime}–${sh.outTime}`;
+                          const label2 = hasP2
+                            ? sh.isHelp2
+                              ? `${sh.inTime2}–${sh.outTime2} ${helpStore2?.name ?? "他店"}H`
+                              : `${sh.inTime2}–${sh.outTime2}`
+                            : "";
                           return (
                             <div key={sh.staffId} className="flex items-center gap-2 h-6">
                               <div className="shrink-0 flex items-center gap-1 overflow-hidden" style={{ width: "80px" }}>
                                 <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badgeCls}`}>
-                                  {isHelp ? "HLP" : isSeishain ? "社" : "AP"}
+                                  {sh.isHelp ? "HLP" : isSeishain ? "社" : "AP"}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-700 truncate">{s?.name ?? "—"}</span>
                               </div>
@@ -692,11 +787,19 @@ function DailyView({ appData, lang, weeks }: DailyViewProps) {
                                   ))}
                                 </div>
                                 <div
-                                  className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls}`}
-                                  style={{ left: `${left}%`, width: `${width}%` }}
+                                  className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls1}`}
+                                  style={{ left: `${left1}%`, width: `${width1}%` }}
                                 >
-                                  <span className="whitespace-nowrap">{sh.inTime}–{sh.outTime}</span>
+                                  <span className="whitespace-nowrap">{label1}</span>
                                 </div>
+                                {hasP2 && (
+                                  <div
+                                    className={`absolute top-0 h-full rounded border text-[9px] font-bold flex items-center px-1 overflow-hidden ${barCls2}`}
+                                    style={{ left: `${left2}%`, width: `${width2}%` }}
+                                  >
+                                    <span className="whitespace-nowrap">{label2}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -725,7 +828,7 @@ function WeeklyView({ appData, lang, weeks }: WeeklyViewProps) {
   const t = useT(lang);
   const [weekIdx, setWeekIdx] = useState(0);
   const week = weeks[weekIdx] ?? [];
-  const confirmedDates = new Set(appData.confirmedDates ?? []);
+  const confirmedDates = new Set<string>((appData.confirmedDates as Record<string, string[]> | undefined)?.[appData.selectedStoreId] ?? []);
   const currentStaff = appData.allStaff
     .filter((s) => s.storeId === appData.selectedStoreId)
     .sort((a, b) => {
@@ -799,18 +902,21 @@ function WeeklyView({ appData, lang, weeks }: WeeklyViewProps) {
                         return <td key={d.date} className="px-1 py-1.5 text-center opacity-20"><span className="text-[10px] text-slate-300">—</span></td>;
                       }
                       const dayData = appData.dailyDataRecord[d.date];
-                      const shift = dayData?.shifts.find((s) => s.staffId === staff.id);
+                      const shift = dayData?.shifts.find((s) => s.staffId === staff.id && (!s.storeId || s.storeId === appData.selectedStoreId));
                       if (shift?.inTime) {
-                        const net = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
-                        weeklyMins += net;
+                        const net1 = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+                        const net2 = shift.inTime2 && shift.outTime2
+                          ? Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0))
+                          : 0;
+                        weeklyMins += net1 + net2;
                         return (
                           <td key={d.date} className="px-1 py-1.5 text-center align-middle">
-                            <div className="text-[10px] font-black text-slate-800 leading-snug">{shift.inTime.replace(":00","")}</div>
-                            <div className="text-[9px] text-slate-300 leading-none">↓</div>
-                            <div className="text-[10px] font-black text-slate-800 leading-snug">{shift.outTime.replace(":00","")}</div>
-                            {shift.isHelp && (
-                              <div className="mt-0.5">
-                                <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">HELP</span>
+                            <div className={`text-[10px] font-black leading-snug ${shift.isHelp ? "text-emerald-700" : "text-slate-800"}`}>
+                              {shift.inTime.replace(":00","")}–{shift.outTime.replace(":00","")}{shift.isHelp ? " H" : ""}
+                            </div>
+                            {shift.inTime2 && shift.outTime2 && (
+                              <div className={`text-[10px] font-black leading-snug mt-0.5 ${shift.isHelp2 ? "text-teal-600" : "text-blue-600"}`}>
+                                {shift.inTime2.replace(":00","")}–{shift.outTime2.replace(":00","")}{shift.isHelp2 ? " H" : ""}
                               </div>
                             )}
                           </td>
@@ -836,13 +942,39 @@ function WeeklyView({ appData, lang, weeks }: WeeklyViewProps) {
   );
 }
 
+const SESSION_KEY = "smartshift_session";
+const SESSION_TTL = 24 * 60 * 60 * 1000; // 24時間
+
+interface SavedSession {
+  staff: Staff;
+  appData: AppData;
+  expiresAt: number;
+}
+
+function loadSession(): { staff: Staff; appData: AppData } | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const saved: SavedSession = JSON.parse(raw);
+    if (Date.now() > saved.expiresAt) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return { staff: saved.staff, appData: saved.appData };
+  } catch {
+    return null;
+  }
+}
+
 // ─── メインコンポーネント ──────────────────────────────────────────────────
 export default function StaffPortal() {
   const [lang, setLang] = useState<Lang>(() => {
     return (localStorage.getItem("smartshift_lang") as Lang) ?? "ja";
   });
-  const [loggedInStaff, setLoggedInStaff] = useState<Staff | null>(null);
-  const [appData, setAppData] = useState<AppData | null>(null);
+
+  const savedSession = loadSession();
+  const [loggedInStaff, setLoggedInStaff] = useState<Staff | null>(savedSession?.staff ?? null);
+  const [appData, setAppData] = useState<AppData | null>(savedSession?.appData ?? null);
   const [activeTab, setActiveTab] = useState<"submit" | "daily" | "weekly">("submit");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -859,14 +991,36 @@ export default function StaffPortal() {
   };
 
   const handleLogin = (staff: Staff, data: AppData) => {
+    const merged = { ...data, selectedStoreId: staff.storeId };
     setLoggedInStaff(staff);
-    setAppData({ ...data, selectedStoreId: staff.storeId });
+    setAppData(merged);
+    const session: SavedSession = { staff, appData: merged, expiresAt: Date.now() + SESSION_TTL };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  };
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!loggedInStaff || refreshing) return;
+    setRefreshing(true);
+    const fresh = await syncFromSupabase(loggedInStaff.storeId, appData!.year, appData!.month);
+    if (fresh) {
+      const merged = { ...fresh, selectedStoreId: loggedInStaff.storeId };
+      setAppData(merged);
+      const session: SavedSession = { staff: loggedInStaff, appData: merged, expiresAt: Date.now() + SESSION_TTL };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      showToast(lang === "ja" ? "最新データに更新しました" : "Updated to latest data");
+    } else {
+      showToast(lang === "ja" ? "更新に失敗しました" : "Update failed", "error");
+    }
+    setRefreshing(false);
   };
 
   const handleLogout = () => {
     setLoggedInStaff(null);
     setAppData(null);
     setActiveTab("submit");
+    localStorage.removeItem(SESSION_KEY);
   };
 
   if (!loggedInStaff || !appData) {
@@ -898,6 +1052,14 @@ export default function StaffPortal() {
         </div>
         <div className="flex items-center gap-2">
           <LangToggle lang={lang} onChange={handleLangChange} />
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors border border-slate-200 disabled:opacity-40"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">{refreshing ? (lang === "ja" ? "更新中..." : "Updating...") : (lang === "ja" ? "更新" : "Refresh")}</span>
+          </button>
           <button
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-slate-200"
             onClick={handleLogout}

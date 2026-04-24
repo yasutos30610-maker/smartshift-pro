@@ -63,14 +63,12 @@ export default function App() {
   const totalBudget = monthDailyData.reduce((s, d) => s + (d.salesBudget || 0), 0);
   const totalActual = monthDailyData.reduce((s, d) => s + (d.salesActual || 0), 0);
   const totalCost = data
-    ? currentStaff.reduce((sum, staff) => {
-        return (
-          sum +
-          monthDailyData.reduce((s, day) => {
-            const shift = day.shifts.find((sh) => sh.staffId === staff.id);
-            return s + (shift ? calcDailyCost(shift, staff, offDays, day.date) : 0);
-          }, 0)
-        );
+    ? monthDailyData.reduce((sum, day) => {
+        return sum + day.shifts.reduce((s, sh) => {
+          if (sh.storeId && sh.storeId !== data.selectedStoreId) return s;
+          const staff = data.allStaff.find((st) => st.id === sh.staffId);
+          return s + (staff ? calcDailyCost(sh, staff, offDays, day.date) : 0);
+        }, 0);
       }, 0)
     : 0;
 
@@ -130,7 +128,6 @@ export default function App() {
           <DashboardTab
             data={data}
             currentStore={currentStore}
-            currentStaff={currentStaff}
             monthDailyData={monthDailyData}
             offDays={offDays}
             targetRatio={targetRatio}
@@ -173,7 +170,6 @@ export default function App() {
             weeks={weeks}
             weekIdx={weekIdx}
             setWeekIdx={setWeekIdx}
-            currentStaff={currentStaff}
             currentStore={currentStore}
             offDays={offDays}
             targetRatio={targetRatio}

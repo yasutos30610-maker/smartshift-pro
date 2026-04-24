@@ -126,8 +126,8 @@ export default function PrintTab({
                       const dayData = data.dailyDataRecord[d.date];
                       const shift = dayData?.shifts.find((s) => s.staffId === staff.id);
                       if (shift?.inTime) {
-                        const net1 = !shift.isHelp ? Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0)) : 0;
-                        const net2 = (!shift.isHelp2 && shift.inTime2 && shift.outTime2)
+                        const net1 = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+                        const net2 = (shift.inTime2 && shift.outTime2)
                           ? Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0))
                           : 0;
                         weeklyMins += net1 + net2;

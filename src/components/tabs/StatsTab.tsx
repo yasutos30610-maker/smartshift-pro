@@ -31,12 +31,17 @@ export default function StatsTab({ data, currentStaff, monthDailyData, offDays }
               {currentStaff.map((staff) => {
                 let workDays = 0, totalNet = 0, totalMidnight = 0, totalCostS = 0;
                 monthDailyData.forEach((day) => {
-                  const sh = day.shifts.find((s) => s.staffId === staff.id);
-                  if (sh?.inTime) {
-                    workDays++;
-                    const net = Math.max(0, calcMinutes(sh.inTime, sh.outTime) - (sh.breakMinutes || 0));
-                    totalNet += net;
-                    totalMidnight += calcMidnightMinutes(sh.inTime, sh.outTime);
+                  const sh = day.shifts.find((s) => s.staffId === staff.id && (!s.storeId || s.storeId === data.selectedStoreId));
+                  if (sh?.inTime || sh?.inTime2) {
+                    if (sh.inTime || sh.inTime2) workDays++;
+                    if (sh.inTime && sh.outTime) {
+                      totalNet += Math.max(0, calcMinutes(sh.inTime, sh.outTime) - (sh.breakMinutes || 0));
+                      totalMidnight += calcMidnightMinutes(sh.inTime, sh.outTime);
+                    }
+                    if (sh.inTime2 && sh.outTime2) {
+                      totalNet += Math.max(0, calcMinutes(sh.inTime2, sh.outTime2) - (sh.breakMinutes2 || 0));
+                      totalMidnight += calcMidnightMinutes(sh.inTime2, sh.outTime2);
+                    }
                     totalCostS += calcDailyCost(sh, staff, offDays, day.date);
                   }
                 });

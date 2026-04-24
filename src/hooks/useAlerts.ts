@@ -13,10 +13,12 @@ export function useAlerts(data: AppData, currentStaff: Staff[], currentDays: Day
       currentDays.forEach(({ date }) => {
         const day = data.dailyDataRecord[date];
         const shift = day?.shifts.find((s) => s.staffId === staff.id);
-        if (shift?.inTime) {
+        if (shift?.inTime || shift?.inTime2) {
           consecutive++;
-          const net = Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
-          totalNet += net;
+          if (shift.inTime && shift.outTime)
+            totalNet += Math.max(0, calcMinutes(shift.inTime, shift.outTime) - (shift.breakMinutes || 0));
+          if (shift.inTime2 && shift.outTime2)
+            totalNet += Math.max(0, calcMinutes(shift.inTime2, shift.outTime2) - (shift.breakMinutes2 || 0));
           if (consecutive > 6) alerts.push({ name: staff.name, msg: "7連勤超え" });
         } else {
           consecutive = 0;
@@ -27,32 +29,7 @@ export function useAlerts(data: AppData, currentStaff: Staff[], currentDays: Day
       }
     });
 
-    // ヘルプ未反映チェック
-    const sid = data?.selectedStoreId;
-    if (!sid) return alerts;
-    const alerted = new Set<string>();
-    Object.values(data.dailyDataRecord).forEach((dayData) => {
-      dayData.shifts.forEach((sh) => {
-        if (sh.isHelp && sh.helpStoreId === sid && !alerted.has(sh.staffId)) {
-          const already = dayData.shifts.some(
-            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime
-          );
-          if (!already) {
-            const staff = data.allStaff.find((s) => s.id === sh.staffId);
-            if (staff) { alerts.push({ name: staff.name, msg: "ヘルプ未反映" }); alerted.add(sh.staffId); }
-          }
-        }
-        if (sh.isHelp2 && sh.helpStoreId2 === sid && sh.inTime2 && !alerted.has(sh.staffId + ":2")) {
-          const already = dayData.shifts.some(
-            (s) => s.storeId === sid && s.staffId === sh.staffId && s.inTime === sh.inTime2
-          );
-          if (!already) {
-            const staff = data.allStaff.find((s) => s.id === sh.staffId);
-            if (staff) { alerts.push({ name: staff.name, msg: "ヘルプ未反映(2部)" }); alerted.add(sh.staffId + ":2"); }
-          }
-        }
-      });
-    });
+    // ヘルプ未反映チェックはImportTabで行うため、ここでは省略
 
     return alerts;
   }, [data, currentStaff, currentDays]);
