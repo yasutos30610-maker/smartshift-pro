@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "./hooks/useToast";
 import { useAppData } from "./hooks/useAppData";
 import { useAlerts } from "./hooks/useAlerts";
@@ -37,6 +37,15 @@ export default function App() {
   const { toast, showToast } = useToast();
   const { data, updateData, saving, shareUrl, shareModal, setShareModal, handleShare } =
     useAppData(showToast);
+
+  // ── ログインユーザーに紐づく店舗を自動選択 ───────────────────────────────
+  useEffect(() => {
+    if (!data || !user || user.role === "admin") return;
+    const allowed = user.assignedStoreIds;
+    if (allowed.length > 0 && !allowed.includes(data.selectedStoreId)) {
+      updateData((d) => ({ ...d, selectedStoreId: allowed[0] }));
+    }
+  }, [user?.id, data?.selectedStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 派生値 ──────────────────────────────────────────────────────────────
   const currentDays = data ? getDaysArray(data.year, data.month) : [];
