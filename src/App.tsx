@@ -29,14 +29,26 @@ export default function App() {
   const { user, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [weekIdx, setWeekIdx] = useState(0);
+  const [staffDirty, setStaffDirty] = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
   const dashboardRef = useRef<HTMLDivElement>(null);
   const allWeeksPrintRef = useRef<HTMLDivElement>(null);
 
   const { toast, showToast } = useToast();
-  const { data, updateData, saving, storeSwitching, switchStore, shareUrl, shareModal, setShareModal, handleShare } =
+  const { data, updateData, saving, storeSwitching, switchStore, flushSave, shareUrl, shareModal, setShareModal, handleShare } =
     useAppData(showToast);
+
+  const handleTabChange = (tab: string) => {
+    if (activeTab === "staff" && staffDirty && tab !== "staff") {
+      const ok = window.confirm(
+        "スタッフ情報に未保存の変更があります。\n保存せずに移動しますか？\n\n※「キャンセル」を押すと保存ボタンで保存できます"
+      );
+      if (!ok) return;
+      setStaffDirty(false);
+    }
+    setActiveTab(tab);
+  };
 
   // ── ログインユーザーに紐づく店舗を自動選択 ───────────────────────────────
   useEffect(() => {
@@ -123,7 +135,7 @@ export default function App() {
     <div className="app-shell font-sans selection:bg-amber-200/50">
       <Sidebar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         data={data}
         updateData={updateData}
         saving={saving}
@@ -219,6 +231,9 @@ export default function App() {
             data={data}
             currentStore={currentStore}
             updateData={updateData}
+            onDirtyChange={setStaffDirty}
+            flushSave={flushSave}
+            saving={saving}
           />
         )}
 

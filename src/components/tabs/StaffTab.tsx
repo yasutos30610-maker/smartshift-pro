@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Plus, Trash2, Save, CheckCircle2 } from "lucide-react";
 import NumberInput from "../ui/NumberInput";
 import type { AppData, Store, Staff, UpdateDataFn } from "../../types";
 
@@ -7,6 +7,9 @@ interface StaffTabProps {
   data: AppData;
   currentStore: Store | undefined;
   updateData: UpdateDataFn;
+  onDirtyChange: (dirty: boolean) => void;
+  flushSave: () => Promise<boolean>;
+  saving: boolean;
 }
 
 function staffGroup(s: Staff): number {
@@ -14,9 +17,11 @@ function staffGroup(s: Staff): number {
   return s.type === "社員" ? 0 : 1;
 }
 
-export default function StaffTab({ data, currentStore, updateData }: StaffTabProps) {
+export default function StaffTab({ data, currentStore, updateData, onDirtyChange, flushSave, saving }: StaffTabProps) {
   const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   const currentStaff = data.allStaff
     .filter((s) => s.storeId === data.selectedStoreId)
@@ -25,8 +30,26 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
       return a.name.localeCompare(b.name, "ja");
     });
 
-  const updateStaff = (id: string, patch: Partial<Staff>) =>
+  const markDirty = useCallback(() => {
+    setIsDirty(true);
+    setJustSaved(false);
+    onDirtyChange(true);
+  }, [onDirtyChange]);
+
+  const updateStaff = (id: string, patch: Partial<Staff>) => {
     updateData((d) => ({ ...d, allStaff: d.allStaff.map((s) => s.id === id ? { ...s, ...patch } : s) }));
+    markDirty();
+  };
+
+  const handleSave = async () => {
+    const ok = await flushSave();
+    if (ok) {
+      setIsDirty(false);
+      setJustSaved(true);
+      onDirtyChange(false);
+      setTimeout(() => setJustSaved(false), 2000);
+    }
+  };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -35,12 +58,39 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">スタッフ管理</h1>
           <p className="text-xs font-bold text-slate-500">{currentStore?.name} のスタッフ一覧</p>
         </div>
-        <button
-          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white text-sm font-bold shadow-xl hover:bg-slate-800 active:scale-95 transition-all"
-          onClick={() => updateData((d) => ({ ...d, allStaff: [...d.allStaff, { id: `s${Date.now()}`, storeId: d.selectedStoreId, name: "新規スタッフ", type: "AP", isSocialInsurance: false, isHelp: false, isRetired: false, hourlyRate: 1100, monthlySalary: 0, adjustments: [] }] }))}
-        >
-          <Plus size={18} /> 新規スタッフ追加
-        </button>
+        <div className="flex items-center gap-3">
+          {/* 保存ボタン */}
+          <button
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow ${
+              justSaved
+                ? "bg-emerald-500 text-white"
+                : isDirty
+                ? "bg-amber-500 hover:bg-amber-400 text-white animate-pulse"
+                : "bg-slate-100 text-slate-400 cursor-default"
+            }`}
+            onClick={handleSave}
+            disabled={saving || (!isDirty && !justSaved)}
+            title={isDirty ? "クリックして今すぐ保存" : "変更なし"}
+          >
+            {justSaved
+              ? <><CheckCircle2 size={15} /> 保存しました</>
+              : saving
+              ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> 保存中...</>
+              : isDirty
+              ? <><Save size={15} /> 今すぐ保存</>
+              : <><Save size={15} /> 保存済み</>
+            }
+          </button>
+          <button
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white text-sm font-bold shadow-xl hover:bg-slate-800 active:scale-95 transition-all"
+            onClick={() => {
+              updateData((d) => ({ ...d, allStaff: [...d.allStaff, { id: `s${Date.now()}`, storeId: d.selectedStoreId, name: "新規スタッフ", type: "AP", isSocialInsurance: false, isHelp: false, isRetired: false, hourlyRate: 1100, monthlySalary: 0, adjustments: [] }] }));
+              markDirty();
+            }}
+          >
+            <Plus size={18} /> 新規スタッフ追加
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -194,7 +244,7 @@ export default function StaffTab({ data, currentStore, updateData }: StaffTabPro
                     <div className="flex justify-end">
                       {confirmDeleteId === staff.id ? (
                         <div className="flex items-center gap-2">
-                          <button className="text-[10px] font-bold text-rose-600 hover:underline" onClick={() => { updateData((d) => ({ ...d, allStaff: d.allStaff.filter((s) => s.id !== staff.id) })); setConfirmDeleteId(null); }}>削除</button>
+                          <button className="text-[10px] font-bold text-rose-600 hover:underline" onClick={() => { updateData((d) => ({ ...d, allStaff: d.allStaff.filter((s) => s.id !== staff.id) })); markDirty(); setConfirmDeleteId(null); }}>削除</button>
                           <button className="text-[10px] font-bold text-slate-400" onClick={() => setConfirmDeleteId(null)}>×</button>
                         </div>
                       ) : (

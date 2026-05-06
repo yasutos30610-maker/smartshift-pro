@@ -31,6 +31,7 @@ interface UseAppDataResult {
   saving: boolean;
   storeSwitching: boolean;
   switchStore: (newStoreId: string) => Promise<void>;
+  flushSave: () => Promise<boolean>;
   shareId: string | null;
   shareUrl: string;
   shareModal: boolean;
@@ -153,6 +154,19 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
     setStoreSwitching(false);
   }, []);
 
+  const flushSave = useCallback(async (): Promise<boolean> => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (!dataRef.current) return false;
+    setSaving(true);
+    const ok = await saveToStorage(dataRef.current, shareIdRef.current);
+    setSaving(false);
+    if (!ok) showToast("クラウド保存に失敗しました。ネット接続を確認してください", "error");
+    return ok;
+  }, [showToast]);
+
   const handleShare = async () => {
     setSaving(true);
     let id = shareId;
@@ -169,5 +183,5 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
     setShareModal(true);
   };
 
-  return { data, updateData, saving, storeSwitching, switchStore, shareId, shareUrl, shareModal, setShareModal, handleShare };
+  return { data, updateData, saving, storeSwitching, switchStore, flushSave, shareId, shareUrl, shareModal, setShareModal, handleShare };
 }
