@@ -165,15 +165,23 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
       return;
     }
 
-    // debug
-    const matched = data.allStaff.filter((s) => s.storeId === selectedStoreId);
-    console.log("[login] selectedStoreId:", selectedStoreId);
-    console.log("[login] allStaff count:", data.allStaff.length, "/ store match:", matched.length);
-    console.log("[login] employeeNos in store:", matched.map((s) => s.employeeNo));
-
-    const staff = data.allStaff.find(
+    // storeId で検索（完全一致）
+    let staff = data.allStaff.find(
       (s) => s.storeId === selectedStoreId && s.employeeNo === employeeNo.trim() && !s.isRetired
     );
+
+    // storeId が別の行から来て不一致の場合、店舗名でフォールバック
+    if (!staff) {
+      const selectedStoreName = stores.find((s) => s.storeId === selectedStoreId)?.storeName;
+      if (selectedStoreName) {
+        staff = data.allStaff.find((s) => {
+          if (s.employeeNo !== employeeNo.trim() || s.isRetired) return false;
+          const staffStore = (data.stores ?? []).find((st) => st.id === s.storeId);
+          return staffStore?.name === selectedStoreName;
+        });
+      }
+    }
+
     if (!staff) {
       setLoginError(lang === "ja" ? "従業員番号が見つかりません" : "Employee number not found");
       setLoggingIn(false);
