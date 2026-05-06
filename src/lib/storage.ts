@@ -200,6 +200,24 @@ export async function syncFromSupabase(
   }
 }
 
+// 店舗の最新行を月問わず取得（スタッフポータルの認証用）
+export async function loadLatestStoreData(storeId: string): Promise<AppData | null> {
+  try {
+    const { data, error } = await supabase
+      .from("shift_data")
+      .select("payload")
+      .eq("store_id", storeId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return (data?.payload as AppData) ?? null;
+  } catch (e) {
+    console.error("最新店舗データ取得エラー:", e);
+    return null;
+  }
+}
+
 // ─── クラウド診断・強制同期 ───────────────────────────────────────────────────
 export async function testSupabaseConnection(): Promise<{ ok: boolean; message: string }> {
   try {

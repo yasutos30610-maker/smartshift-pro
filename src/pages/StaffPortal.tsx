@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogIn, Send, CalendarDays, CalendarRange, LogOut, CheckCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
-import { syncFromSupabase } from "../lib/storage";
+import { syncFromSupabase, loadLatestStoreData } from "../lib/storage";
 import { loadStoresForMonth, submitRequest, fetchRequests } from "../lib/requests";
 import type { AppData, Staff, RequestedShift, ShiftRequest } from "../types";
 import { getDaysArray, getWeeks, DOW, formatDate } from "../utils/date";
@@ -149,6 +149,10 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
     setLoginError("");
 
     let data = await syncFromSupabase(selectedStoreId, year, month);
+    // 当月データがなければ当店の最新月データで認証（allStaff は月不問）
+    if (!data) {
+      data = await loadLatestStoreData(selectedStoreId);
+    }
     if (!data) {
       const local = localStorage.getItem("smartshift_data");
       if (local) {

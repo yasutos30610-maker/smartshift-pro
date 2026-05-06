@@ -61,3 +61,28 @@ create index if not exists idx_shift_data_store_year_month
 
 create index if not exists idx_shared_snapshots_expires
   on shared_snapshots (expires_at);
+
+-- ─── シフト希望申請（スタッフポータル用）────────────────────────────────────────
+create table if not exists shift_requests (
+  id           text        primary key,
+  staff_id     text        not null,
+  store_id     text        not null,
+  year         integer     not null,
+  month        integer     not null,
+  shifts       jsonb       not null default '[]',
+  submitted_at timestamptz not null default now(),
+  status       text        not null default 'pending' check (status in ('pending', 'reflected')),
+  resubmit     boolean     not null default false,
+  created_at   timestamptz not null default now()
+);
+
+alter table shift_requests enable row level security;
+
+create policy "allow_all_shift_requests" on shift_requests
+  for all using (true) with check (true);
+
+create index if not exists idx_shift_requests_store_year_month
+  on shift_requests (store_id, year, month);
+
+create index if not exists idx_shift_requests_staff
+  on shift_requests (staff_id);
