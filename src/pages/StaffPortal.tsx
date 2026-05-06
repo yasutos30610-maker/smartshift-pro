@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogIn, Send, CalendarDays, CalendarRange, LogOut, CheckCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
-import { syncFromSupabase, loadLatestStoreData } from "../lib/storage";
+import { syncFromSupabase, findStaffByEmployeeNo } from "../lib/storage";
 import { loadStoresForMonth, submitRequest, fetchRequests } from "../lib/requests";
 import type { AppData, Staff, RequestedShift, ShiftRequest } from "../types";
 import { getDaysArray, getWeeks, DOW, formatDate } from "../utils/date";
@@ -148,52 +148,18 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
     setLoggingIn(true);
     setLoginError("");
 
-    let data = await syncFromSupabase(selectedStoreId, year, month);
-    // 当月データがなければ当店の最新月データで認証（allStaff は月不問）
-    if (!data) {
-      data = await loadLatestStoreData(selectedStoreId);
-    }
-    if (!data) {
-      const local = localStorage.getItem("smartshift_data");
-      if (local) {
-        try { data = JSON.parse(local) as AppData; } catch { /* ignore */ }
-      }
-    }
-    if (!data) {
-      setLoginError(lang === "ja" ? "店舗データを取得できませんでした" : "Could not load store data");
-      setLoggingIn(false);
-      return;
-    }
+    // 店舗名でスタッフを横断検索（storeIDの不一致を根本回避）
+    const selectedStoreName = stores.find((s) => s.storeId === selectedStoreId)?.storeName ?? "";
+    const result = await findStaffByEmployeeNo(employeeNo.trim(), selectedStoreName);
 
-    // storeId で検索（完全一致）
-    let staff = data.allStaff.find(
-      (s) => s.storeId === selectedStoreId && s.employeeNo === employeeNo.trim() && !s.isRetired
-    );
-
-    // storeId が別の行から来て不一致の場合、店舗名でフォールバック
-    if (!staff) {
-      const selectedStoreName = stores.find((s) => s.storeId === selectedStoreId)?.storeName;
-      if (selectedStoreName) {
-        staff = data.allStaff.find((s) => {
-          if (s.employeeNo !== employeeNo.trim() || s.isRetired) return false;
-          const staffStore = (data.stores ?? []).find((st) => st.id === s.storeId);
-          return staffStore?.name === selectedStoreName;
-        });
-      }
-    }
-
-    // 最終フォールバック: 従業員番号のみで検索（店舗IDが完全に不整合な場合）
-    if (!staff) {
-      staff = data.allStaff.find(
-        (s) => s.employeeNo === employeeNo.trim() && !s.isRetired
-      );
-    }
-
-    if (!staff) {
+    if (!result) {
       setLoginError(lang === "ja" ? "従業員番号が見つかりません" : "Employee number not found");
       setLoggingIn(false);
       return;
     }
+
+    const { staff, data } = result;
+
     if (!staff.pass) {
       setLoginError(t("noPassSet"));
       setLoggingIn(false);
