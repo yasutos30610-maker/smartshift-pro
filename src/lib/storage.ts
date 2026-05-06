@@ -208,10 +208,9 @@ export async function loadLatestStoreData(storeId: string): Promise<AppData | nu
       .select("payload")
       .eq("store_id", storeId)
       .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
     if (error) throw error;
-    return (data?.payload as AppData) ?? null;
+    return (data?.[0]?.payload as AppData) ?? null;
   } catch (e) {
     console.error("最新店舗データ取得エラー:", e);
     return null;

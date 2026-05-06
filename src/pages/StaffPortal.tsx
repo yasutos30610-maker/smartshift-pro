@@ -182,6 +182,13 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
       }
     }
 
+    // 最終フォールバック: 従業員番号のみで検索（店舗IDが完全に不整合な場合）
+    if (!staff) {
+      staff = data.allStaff.find(
+        (s) => s.employeeNo === employeeNo.trim() && !s.isRetired
+      );
+    }
+
     if (!staff) {
       setLoginError(lang === "ja" ? "従業員番号が見つかりません" : "Employee number not found");
       setLoggingIn(false);
