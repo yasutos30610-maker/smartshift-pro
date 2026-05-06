@@ -95,6 +95,7 @@ export interface AppData {
   shareId?: string;
   confirmedDates?: Record<string, string[]>; // storeId → confirmed date strings
   importedHelpKeys?: Record<string, string[]>; // storeId → ["date|staffId|inTime", ...]
+  _savedForStore?: string; // 保存時の selectedStoreId（汚染検出用）
 }
 
 export interface DayInfo {

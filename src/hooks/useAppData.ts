@@ -1,13 +1,36 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { AppData } from "../types";
-import { loadFromStorage, saveToStorage, generateShareId } from "../lib/storage";
+import { loadFromStorage, saveToStorage, generateShareId, syncFromSupabase, persistLocalCache } from "../lib/storage";
 import { buildDefaultData } from "../utils/defaults";
 import { getDaysArray } from "../utils/date";
+
+// 店舗データが newStoreId に対して正規のものかを判定する
+// _savedForStore フィールド（保存時に付与）で確実に判定し、
+// 旧データはシフト storeId とサスペクト salesBudget でヒューリスティック判定する
+function isLegitimateForStore(storeData: AppData, storeId: string): boolean {
+  // 保存修正後: 明示的なマーカーがある場合
+  if (storeData._savedForStore === storeId) return true;
+  if (storeData._savedForStore && storeData._savedForStore !== storeId) return false;
+
+  // 保存修正前の旧データ: シフトの storeId でヒューリスティック判定
+  const allShifts = Object.values(storeData.dailyDataRecord).flatMap((d) => d.shifts);
+  const hasOwn = allShifts.some((sh) => !sh.storeId || sh.storeId === storeId);
+  const hasForeign = allShifts.some((sh) => sh.storeId && sh.storeId !== storeId);
+
+  if (hasForeign && !hasOwn) return false; // 他店のシフトのみ = 汚染
+  if (hasOwn) return true;                  // 自店シフトあり = 正規
+
+  // シフトなしの場合: salesBudget が 0 以外ならば汚染の疑い
+  const hasBudgets = Object.values(storeData.dailyDataRecord).some((d) => (d.salesBudget ?? 0) > 0);
+  return !hasBudgets;
+}
 
 interface UseAppDataResult {
   data: AppData | null;
   updateData: (updater: AppData | ((prev: AppData) => AppData)) => void;
   saving: boolean;
+  storeSwitching: boolean;
+  switchStore: (newStoreId: string) => Promise<void>;
   shareId: string | null;
   shareUrl: string;
   shareModal: boolean;
@@ -18,10 +41,15 @@ interface UseAppDataResult {
 export function useAppData(showToast: (msg: string, type?: "success" | "error") => void): UseAppDataResult {
   const [data, setData] = useState<AppData | null>(null);
   const [saving, setSaving] = useState(false);
+  const [storeSwitching, setStoreSwitching] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
   const [shareModal, setShareModal] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dataRef = useRef<AppData | null>(null);
+  dataRef.current = data;
+  const shareIdRef = useRef<string | null>(null);
+  shareIdRef.current = shareId;
 
   const scheduleAutoSave = useCallback(
     (newData: AppData) => {
@@ -69,7 +97,7 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ensure daily data exists for current month
+  // 対象月 or 店舗切替時に日別データの存在を保証する
   useEffect(() => {
     if (!data) return;
     const days = getDaysArray(data.year, data.month);
@@ -82,7 +110,48 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
       }
     });
     if (changed) updateData((d) => ({ ...d, dailyDataRecord: newRecord }));
-  }, [data?.year, data?.month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data?.year, data?.month, data?.selectedStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const switchStore = useCallback(async (newStoreId: string) => {
+    const currentData = dataRef.current;
+    const currentShareId = shareIdRef.current;
+    if (!currentData || currentData.selectedStoreId === newStoreId) return;
+    setStoreSwitching(true);
+
+    // 現在の店舗データを先にフラッシュ保存（_savedForStore が付与される）
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    await saveToStorage(currentData, currentShareId);
+
+    // 新しい店舗のデータを Supabase から取得
+    const newStoreData = await syncFromSupabase(newStoreId, currentData.year, currentData.month);
+
+    const buildNext = (prev: AppData): AppData => {
+      if (newStoreData && isLegitimateForStore(newStoreData, newStoreId)) {
+        // 正規データ: そのまま使用
+        return {
+          ...prev,
+          selectedStoreId: newStoreId,
+          dailyDataRecord: newStoreData.dailyDataRecord,
+          confirmedDates: newStoreData.confirmedDates ?? {},
+          importedHelpKeys: newStoreData.importedHelpKeys ?? {},
+          offDaySettings: newStoreData.offDaySettings ?? prev.offDaySettings,
+        };
+      }
+      // 汚染データ or 未設定: 空状態で開始（その後の useEffect で日別初期化される）
+      return {
+        ...prev,
+        selectedStoreId: newStoreId,
+        dailyDataRecord: {},
+        confirmedDates: {},
+        importedHelpKeys: {},
+      };
+    };
+
+    const next = buildNext(currentData);
+    persistLocalCache(next);
+    setData((prev) => (prev ? buildNext(prev) : prev));
+    setStoreSwitching(false);
+  }, []);
 
   const handleShare = async () => {
     setSaving(true);
@@ -100,5 +169,5 @@ export function useAppData(showToast: (msg: string, type?: "success" | "error") 
     setShareModal(true);
   };
 
-  return { data, updateData, saving, shareId, shareUrl, shareModal, setShareModal, handleShare };
+  return { data, updateData, saving, storeSwitching, switchStore, shareId, shareUrl, shareModal, setShareModal, handleShare };
 }

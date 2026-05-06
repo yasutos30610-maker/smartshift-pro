@@ -37,10 +37,12 @@ interface SidebarProps {
   data: AppData;
   updateData: UpdateDataFn;
   saving: boolean;
+  storeSwitching: boolean;
+  switchStore: (newStoreId: string) => Promise<void>;
   onShare: () => void;
 }
 
-export default function Sidebar({ activeTab, onTabChange, data, updateData, saving, onShare }: SidebarProps) {
+export default function Sidebar({ activeTab, onTabChange, data, updateData, saving, storeSwitching, switchStore, onShare }: SidebarProps) {
   const { user, logout } = useAuth();
   const role = user?.role ?? "store_manager";
 
@@ -111,9 +113,10 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
           </div>
         ) : (
           <select
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-amber-500 transition-colors"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-amber-500 transition-colors disabled:opacity-50"
             value={data.selectedStoreId}
-            onChange={(e) => updateData((d) => ({ ...d, selectedStoreId: e.target.value }))}
+            onChange={(e) => { void switchStore(e.target.value); }}
+            disabled={storeSwitching}
             title="表示店舗"
           >
             {visibleStores.map((s) => (
@@ -159,9 +162,9 @@ export default function Sidebar({ activeTab, onTabChange, data, updateData, savi
           <span className="hidden md:inline">共有する</span>
         </button>
         <div className="flex items-center justify-center md:justify-start gap-1.5 mt-2 px-1">
-          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${saving ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${storeSwitching ? "bg-blue-400 animate-pulse" : saving ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
           <span className="hidden md:block text-[10px] text-slate-400 font-bold">
-            {saving ? "保存中..." : "保存済み"}
+            {storeSwitching ? "切替中..." : saving ? "保存中..." : "保存済み"}
           </span>
         </div>
       </div>

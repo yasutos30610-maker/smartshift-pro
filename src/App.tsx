@@ -35,7 +35,7 @@ export default function App() {
   const allWeeksPrintRef = useRef<HTMLDivElement>(null);
 
   const { toast, showToast } = useToast();
-  const { data, updateData, saving, shareUrl, shareModal, setShareModal, handleShare } =
+  const { data, updateData, saving, storeSwitching, switchStore, shareUrl, shareModal, setShareModal, handleShare } =
     useAppData(showToast);
 
   // ── ログインユーザーに紐づく店舗を自動選択 ───────────────────────────────
@@ -127,6 +127,8 @@ export default function App() {
         data={data}
         updateData={updateData}
         saving={saving}
+        storeSwitching={storeSwitching}
+        switchStore={switchStore}
         onShare={handleShare}
       />
 

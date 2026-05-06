@@ -118,8 +118,9 @@ export async function saveToStorage(
   }
 
   // ローカルへ即時保存
+  const payload = { ...data, _savedForStore: data.selectedStoreId };
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(payload));
     saveHint(data);
   } catch { /* quota */ }
 
@@ -130,7 +131,7 @@ export async function saveToStorage(
       store_id: data.selectedStoreId,
       year: data.year,
       month: data.month,
-      payload: data,
+      payload,
     });
     if (error) {
       console.error("Supabase保存失敗:", error.message, error.code);
@@ -172,11 +173,18 @@ export async function saveOtherStoreData(data: AppData, fromStoreId: string): Pr
       store_id: fromStoreId,
       year: data.year,
       month: data.month,
-      payload: data,
+      payload: { ...data, _savedForStore: fromStoreId },
     });
   } catch (e) {
     console.error("他店データ保存エラー:", e);
   }
+}
+
+export function persistLocalCache(data: AppData): void {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+    saveHint(data);
+  } catch { /* quota */ }
 }
 
 export async function syncFromSupabase(
