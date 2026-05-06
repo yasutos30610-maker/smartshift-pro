@@ -148,9 +148,8 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
     setLoggingIn(true);
     setLoginError("");
 
-    // 店舗名でスタッフを横断検索（storeIDの不一致を根本回避）
-    const selectedStoreName = stores.find((s) => s.storeId === selectedStoreId)?.storeName ?? "";
-    const result = await findStaffByEmployeeNo(employeeNo.trim(), selectedStoreName);
+    // 従業員番号で全行を横断検索（storeID・店舗名の不一致を完全回避）
+    const result = await findStaffByEmployeeNo(employeeNo.trim());
 
     if (!result) {
       setLoginError(lang === "ja" ? "従業員番号が見つかりません" : "Employee number not found");

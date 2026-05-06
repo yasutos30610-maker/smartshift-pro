@@ -217,6 +217,34 @@ export async function loadLatestStoreData(storeId: string): Promise<AppData | nu
   }
 }
 
+// 全行を横断して従業員番号でスタッフを検索
+// 認証の本質は employeeNo + pass なので店舗IDには依存しない
+export async function findStaffByEmployeeNo(
+  employeeNo: string
+): Promise<{ staff: import("../types").Staff; data: AppData } | null> {
+  try {
+    const { data: rows, error } = await supabase
+      .from("shift_data")
+      .select("payload")
+      .order("updated_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+
+    for (const row of rows ?? []) {
+      const rowData = row.payload as AppData;
+      if (!Array.isArray(rowData?.allStaff)) continue;
+      const staff = rowData.allStaff.find(
+        (s) => s.employeeNo === employeeNo && !s.isRetired
+      );
+      if (staff) return { staff, data: rowData };
+    }
+    return null;
+  } catch (e) {
+    console.error("スタッフ横断検索エラー:", e);
+    return null;
+  }
+}
+
 // ─── クラウド診断・強制同期 ───────────────────────────────────────────────────
 export async function testSupabaseConnection(): Promise<{ ok: boolean; message: string }> {
   try {
