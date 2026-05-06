@@ -165,6 +165,12 @@ function LoginScreen({ lang, onLangChange, onLogin }: LoginScreenProps) {
       return;
     }
 
+    // debug
+    const matched = data.allStaff.filter((s) => s.storeId === selectedStoreId);
+    console.log("[login] selectedStoreId:", selectedStoreId);
+    console.log("[login] allStaff count:", data.allStaff.length, "/ store match:", matched.length);
+    console.log("[login] employeeNos in store:", matched.map((s) => s.employeeNo));
+
     const staff = data.allStaff.find(
       (s) => s.storeId === selectedStoreId && s.employeeNo === employeeNo.trim() && !s.isRetired
     );
