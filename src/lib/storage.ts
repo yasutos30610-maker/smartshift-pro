@@ -207,6 +207,7 @@ export async function loadLatestStoreData(storeId: string): Promise<AppData | nu
       .from("shift_data")
       .select("payload")
       .eq("store_id", storeId)
+      .not("id", "like", "req:%")
       .order("updated_at", { ascending: false })
       .limit(1);
     if (error) throw error;
@@ -226,6 +227,7 @@ export async function findStaffByEmployeeNo(
     const { data: rows, error } = await supabase
       .from("shift_data")
       .select("payload")
+      .not("id", "like", "req:%")
       .order("updated_at", { ascending: false })
       .limit(50);
     if (error) throw error;

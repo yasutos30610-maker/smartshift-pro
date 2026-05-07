@@ -1,4 +1,4 @@
-import type { ShiftRequest, RequestedShift } from "../types";
+import type { ShiftRequest, RequestedShift, AppData } from "../types";
 import { supabase } from "./supabase";
 
 // ─── localStorage キー ──────────────────────────────────────────────────────
@@ -21,7 +21,15 @@ function saveLocal(storeId: string, year: number, month: number, list: ShiftRequ
   } catch { /* ignore quota errors */ }
 }
 
-// ─── shift_requests CRUD（Supabase + localStorage フォールバック）───────────
+// shift_data テーブル内の申請専用行の ID
+// 通常行は "${storeId}_${year}_${month}"、申請行は "req:${storeId}:${year}:${month}"
+function reqRowId(storeId: string, year: number, month: number): string {
+  return `req:${storeId}:${year}:${month}`;
+}
+
+type ReqPayload = { requests: ShiftRequest[] };
+
+// ─── シフト希望申請 CRUD（shift_data テーブルを共有）────────────────────────
 
 export async function fetchRequests(
   storeId: string,
@@ -30,106 +38,110 @@ export async function fetchRequests(
 ): Promise<ShiftRequest[]> {
   try {
     const { data, error } = await supabase
-      .from("shift_requests")
-      .select("*")
-      .eq("store_id", storeId)
-      .eq("year", year)
-      .eq("month", month)
-      .order("submitted_at", { ascending: false });
+      .from("shift_data")
+      .select("payload")
+      .eq("id", reqRowId(storeId, year, month))
+      .maybeSingle();
     if (error) throw error;
-    const list = (data ?? []).map(rowToRequest);
-    // ローカルにもキャッシュ
-    saveLocal(storeId, year, month, list);
-    return list;
+    const reqs = ((data?.payload as unknown as ReqPayload) ?? {}).requests ?? [];
+    saveLocal(storeId, year, month, reqs);
+    return reqs;
   } catch {
-    // Supabase が使えない場合は localStorage から返す
     return loadLocal(storeId, year, month);
   }
 }
 
-export async function submitRequest(
-  req: Omit<ShiftRequest, "id">
-): Promise<boolean> {
+export async function submitRequest(req: Omit<ShiftRequest, "id">): Promise<boolean> {
   const newReq: ShiftRequest = {
     ...req,
     id: `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
   };
 
-  // まず localStorage に保存（オフライン対応）
-  const existing = loadLocal(req.storeId, req.year, req.month);
-  // 同じスタッフの既存申請を置き換え
-  const updated = [
-    ...existing.filter((r) => r.staffId !== req.staffId),
+  // localStorage に先行保存（オフライン対応）
+  const localList = loadLocal(req.storeId, req.year, req.month);
+  saveLocal(req.storeId, req.year, req.month, [
+    ...localList.filter((r) => r.staffId !== req.staffId),
     newReq,
-  ];
-  saveLocal(req.storeId, req.year, req.month, updated);
+  ]);
 
-  // Supabase にも保存
+  // shift_data テーブルの申請専用行に保存（別テーブル不要）
   try {
-    const { error } = await supabase.from("shift_requests").insert({
-      id: newReq.id,
-      staff_id: req.staffId,
+    const rowId = reqRowId(req.storeId, req.year, req.month);
+
+    // 既存申請を読み込んでマージ
+    const { data: existing } = await supabase
+      .from("shift_data")
+      .select("payload")
+      .eq("id", rowId)
+      .maybeSingle();
+
+    const existingReqs = ((existing?.payload as unknown as ReqPayload) ?? {}).requests ?? [];
+    const merged = [...existingReqs.filter((r) => r.staffId !== req.staffId), newReq];
+
+    const { error } = await supabase.from("shift_data").upsert({
+      id: rowId,
       store_id: req.storeId,
       year: req.year,
       month: req.month,
-      shifts: req.shifts,
-      submitted_at: req.submittedAt,
-      status: req.status,
-      resubmit: req.resubmit ?? false,
+      payload: { requests: merged } as unknown as AppData,
     });
-    if (error) {
-      console.warn("Supabase shift_requests 保存エラー:", error.message, error.code);
-    }
+    if (error) console.warn("申請保存エラー:", error.message);
+    return true;
   } catch (e) {
-    console.warn("Supabase接続エラー（localStorage に保存済み）:", e);
+    console.warn("申請Supabase保存失敗:", e);
+    return true; // localStorage には保存済み
   }
-
-  return true; // localStorage に保存できれば成功とみなす
 }
 
 export async function updateRequestStatus(
   id: string,
-  status: "pending" | "reflected"
+  status: "pending" | "reflected",
+  storeId: string,
+  year: number,
+  month: number
 ): Promise<boolean> {
-  // localStorage を更新
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (!key?.startsWith("smartshift_requests_")) continue;
-    try {
-      const list = JSON.parse(localStorage.getItem(key) ?? "[]") as ShiftRequest[];
-      const idx = list.findIndex((r) => r.id === id);
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], status };
-        localStorage.setItem(key, JSON.stringify(list));
-      }
-    } catch { /* ignore */ }
-  }
+  // localStorage 更新
+  const localList = loadLocal(storeId, year, month);
+  saveLocal(storeId, year, month, localList.map((r) => r.id === id ? { ...r, status } : r));
 
-  // Supabase も更新（テーブルがない場合は無視）
+  // Supabase 更新
   try {
-    const { error } = await supabase
-      .from("shift_requests")
-      .update({ status })
-      .eq("id", id);
-    if (error) console.warn("Supabase status更新スキップ:", error.message);
-  } catch (e) {
-    console.warn("Supabase接続エラー:", e);
-  }
+    const rowId = reqRowId(storeId, year, month);
+    const { data: existing } = await supabase
+      .from("shift_data")
+      .select("payload")
+      .eq("id", rowId)
+      .maybeSingle();
+    if (!existing?.payload) return true;
 
-  return true;
+    const existingReqs = ((existing.payload as unknown as ReqPayload).requests ?? [])
+      .map((r) => r.id === id ? { ...r, status } : r);
+
+    await supabase.from("shift_data").upsert({
+      id: rowId,
+      store_id: storeId,
+      year: year,
+      month: month,
+      payload: { requests: existingReqs } as unknown as AppData,
+    });
+    return true;
+  } catch {
+    return true;
+  }
 }
 
-// ─── ストア一覧をSupabaseから取得（スタッフポータル用）─────────────────────
+// ─── ストア一覧をSupabaseから取得（申請専用行を除外）────────────────────────
 
 export async function loadStoresForMonth(
   _year: number,
   _month: number
 ): Promise<Array<{ storeId: string; storeName: string }>> {
   try {
-    // 最新の shift_data 行から payload.stores を取得（当月データ不問）
+    // "req:" プレフィックス行は申請専用なので除外
     const { data, error } = await supabase
       .from("shift_data")
       .select("payload")
+      .not("id", "like", "req:%")
       .order("updated_at", { ascending: false })
       .limit(1);
     if (error) throw error;
@@ -142,8 +154,9 @@ export async function loadStoresForMonth(
   }
 }
 
-// ─── 行変換ヘルパー ─────────────────────────────────────────────────────────
+// ─── 行変換ヘルパー（後方互換）──────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function rowToRequest(row: Record<string, unknown>): ShiftRequest {
   return {
     id: row.id as string,

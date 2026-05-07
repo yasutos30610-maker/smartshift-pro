@@ -103,7 +103,7 @@ export default function ImportTab({ data, currentStaff, updateData }: ImportTabP
       });
       return next;
     });
-    await updateRequestStatus(req.id, "reflected");
+    await updateRequestStatus(req.id, "reflected", data.selectedStoreId, data.year, data.month);
     setRequests((prev) =>
       prev.map((r) => (r.id === req.id ? { ...r, status: "reflected" } : r))
     );
